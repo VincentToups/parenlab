@@ -18,55 +18,14 @@
 							 (setq x 9)
 							 x)))
 
+(pl:transcode-sequence '((setq x 10) (setq y 11) (+ x y)))
 
-(cl-prettyprint (macroexpand '(defun-match pl:transcode ((list 'if condition true false))
-  "If is transcoded to a functional if."
-  (insertf "fif(")
-  (pl:transcode condition)
-  (insertf ", @()")
-  (pl:transcode true)
-  (insertf ", @()")
-  (pl:transcode false)
-  (insertf ")"))))
+(pl:transcode '(function (a b c) test-function (x y)
+						 "This is a doc string."
+						 (setq a (+ x y))
+						 (setq b (+ x a))
+						 (setq c (+ x b))))
 
-(progn
-  (extend-match-function 'pl:transcode
-						 (lambda (defun-match-inner-args-11549)
-						   (match1 (list (list 'if condition true false))
-								   defun-match-inner-args-11549
-								   "If is transcoded to a functional if."
-								   (insertf "fif(")
-								   (pl:transcode condition)
-								   (insertf ", @()")
-								   (pl:transcode true)
-								   (insertf ", @()")
-								   (pl:transcode false)
-								   (insertf ")")))
-						 '((list (quote if) condition true false))
-						 "If is transcoded to a functional if.")
-  (defalias 'pl:transcode
-	(lambda (&rest defun-match-arg-list-11548)
-	  (flet ((recur (&rest defun-match-inner-recur-args-11554)
-					(list 'defun-match-recur-sigil-for-pl:transcode-7925
-						  defun-match-inner-recur-args-11554)))
-		(shadchen:let/named recur-point-11553
-							((defun-match-possibles-11555 (gethash 'pl:transcode
-																   *match-function-table*)))
-							(cond ((not defun-match-possibles-11555)
-								   (error "Match fail for matching defun %s with arguments %S."
-										  'pl:transcode
-										  defun-match-arg-list-11548))
-								  (:otherwise (let* ((defun-match-fun-11550 (car defun-match-possibles-11555))
-													 (defun-match-val-11551 (funcall defun-match-fun-11550
-																					 defun-match-arg-list-11548)))
-												(cond ((eq *match-fail*
-														   defun-match-val-11551)
-													   (recur-point-11553 (cdr defun-match-possibles-11555)))
-													  ((and (listp defun-match-val-11551)
-															(eq (car defun-match-val-11551)
-																'defun-match-recur-sigil-for-pl:transcode-7925))
-													   (setq defun-match-arg-list-11548 (cadr defun-match-val-11551))
-													   (recur-point-11553 (gethash 'pl:transcode
-																				   *match-function-table*)))
-													  (:otherwise defun-match-val-11551))))))))
-	(gethash 'pl:transcode *match-function-doc-table*)))
+
+(pl:transcode-to-string '(with x 10 (+ x 1)))
+
