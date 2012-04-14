@@ -83,6 +83,37 @@
   (delete-region (point) (- (point) 2))
   (pl:insertf ")"))
 
+(defun-match pl:transcode ((list-rest 'block body))
+  "A block is inserted directly into the code as a sequence of
+  operations."
+  (pl:transcode-sequence body))
+
+(defun-match pl:transcode ((list 'if condition 
+								 (list-rest 'block true-body)
+								 (list-rest 'block false-body)))
+  "When if is invoked with block legs it is translated into a
+regular, non-functional if statement."
+  (let ((start (point)))
+	(pl:insertf "if ")
+	(pl:transcode condition)
+	(pl:insertf "\n")
+	(pl:transcode-sequence true-body)
+	(pl:insertf "else\n")
+	(pl:transcode-sequence false-body)
+	(pl:insertf "end\n")
+	(indent-region start (point))))
+
+(defun-match pl:transcode ((list 'if condition 
+								 (list-rest 'block true-body)))
+  "When if is invoked with block legs it is translated into a
+regular, non-functional if statement."
+  (let ((start (point)))
+	(pl:insertf "if ")
+	(pl:transcode condition)
+	(pl:insertf "\n")
+	(pl:transcode-sequence true-body)
+	(pl:insertf "end\n")))
+
 (defun-match pl:transcode ((list 'if condition true false))
   "If is transcoded to a functional if."
   (pl:insertf "fif(")
@@ -104,7 +135,33 @@
   (pl:insertf ")")
   (pl:transcode form))
 
-(defun-match pl:transcode ((list-rest 'function 
+(defun-match pl:transcode ((list-rest 'for (p #'symbolp v) expr body))
+  "Expand a for loop."
+  (let ((start (point)))
+	(pl:insertf "for ")
+	(pl:transcode v)
+	(pl:insertf " = ")
+	(pl:transcode expr)
+	(pl:insertf "\n")
+	(pl:transcode-sequence body)
+	(pl:insertf "end\n")
+	(indent-region start (point))))
+
+(defun-match pl:transcode ((list 'literally string))
+  "Allows you to insert code directly into the output stream."
+  (pl:insertf string))
+
+(defun-match pl:transcode ((list-rest 'while condition body))
+  "Encode a while loop."
+  (let ((start (point)))
+	(pl:insertf "while ")
+	(pl:transcode condition)
+	(pl:insertf "\n")
+	(pl:transcode-sequence body)
+	(pl:insertf "end\n")
+	(indent-region start (point))))
+
+(defun-match pl:transcode ((list-rest 'defun
 									  (pl:arglist outargs)
 									  (p #'symbolp name) 
 									  (pl:arglist inargs) 
@@ -136,7 +193,6 @@
 	  (pl:transcode-sequence body)
 	  (basic-save-buffer))
 	(kill-buffer output-buffer)))
-
 
 (defvar *pl-macros* (make-hash-table))
 
@@ -188,7 +244,6 @@
 										(concat (format "\n") "%")
 										s)))
 
-
 (defun-match- pl:transcode-sequence (nil) 
   "Don't do anything with the empty sequence."
   nil)
@@ -198,4 +253,8 @@
   (pl:insertf ";\n")
   (recur forms))
 
+(defmacro pl:defun (oargs name iargs &body body)
+  "Define a matlab function by creating a file and filling it in
+with the transcoded code."
+  `(pl:transcode '(defun ,oargs ,name ,iargs ,@body)))
 

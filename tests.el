@@ -29,3 +29,7 @@
 
 (pl:transcode-to-string '(with x 10 (+ x 1)))
 
+(pl:transcode-to-string '(if (< x 10) (block (setq x 1000))
+						   (block (setq y 1000))))
+
+(pl:transcode-to-string '(for x 1:10 (disp x)))
