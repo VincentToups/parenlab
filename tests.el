@@ -10,6 +10,16 @@
 (pl:transcode-to-string '(lambda (x y z) some-symbol))
 (pl:transcode-to-string '(lambda (a b c) (progn a b some-symbol)))
 (pl:transcode-to-string '(: a c))
+(pl:transcode-to-string '(cell #'sin))
+(pl:transcode-to-string [1 2 3 4])
+(match (list [1 2 3])  
+	   ((list (p #'vectorp v))  v))
+
+(defun-match- test ((p #'vectorp v)) v)
+(test [1 2])
+
+(pl:transcode [1 2 | 3 4])
+
 
 (pl:transcode-to-string '(if (< x 10)
 							 (progn 

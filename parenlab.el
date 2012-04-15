@@ -1,5 +1,7 @@
 (require 'shadchen)
 
+(setq max-lisp-eval-depth 1000)
+
 (defun pl:symbol-with-indexing-syntax (x)
   "Return T when x is a non-keyword symbol with indexing syntax."
   (and (symbolp x)
@@ -76,6 +78,19 @@
 		  (pl:transcode (pl:read-from-string stop))
 		  (pl:insertf "))"))))
 
+(defun-match pl:transcode ((p #'vectorp v))
+  "Handle vector."
+  (let ((start (point)))
+	(pl:insertf "[ ")
+	(loop for item across v do
+		  (if (eq '| item) 
+			  (pl:insertf ";\n")
+			(progn (pl:transcode item)
+				   (pl:insertf " "))))
+	(pl:insertf "]")
+	(indent-region start (point))))
+
+
 (defun-match pl:transcode ((p #'pl:non-keyword-symbolp s))
   "Symbols are mangled and inserted as variables."
   (pl:insertf "%s" (pl:mangle s)))
@@ -137,6 +152,7 @@ regular, non-functional if statement."
 	(pl:transcode-sequence false-body)
 	(pl:insertf "end\n")
 	(indent-region start (point))))
+
 
 (defun-match pl:transcode ((list ': first last))
   "Transcode short array creation."
@@ -224,6 +240,11 @@ regular, non-functional if statement."
 	(pl:transcode-sequence body)
 	(pl:insertf "end\n")
 	(indent-region start (point))))
+
+(defun-match pl:transcode ((list 'function (p #'symbolp s)))
+  "Encode a function namespace query."
+  (pl:insertf "@")
+  (pl:transcode s))
 
 (defun-match pl:transcode ((list-rest 'defun
 									  (pl:arglist outargs)
@@ -324,14 +345,15 @@ with the transcoded code."
 
 
 (pl:defun (r) ++ (varargin)
-				 "What?"
-				 (setq r 0) 
-				 (for x varargin
-					  (setq r (+ r ({} x 1)))))
+		  "What?"
+		  (setq r 0) 
+		  (for x varargin
+			   (setq r (+ r ({} x 1)))))
 
 (pl:defun (r) ** (varargin)
 		  "What?"
 		  (setq r 1) 
 		  (for x varargin
 			   (setq r (* r ({} x 1)))))
+
 
