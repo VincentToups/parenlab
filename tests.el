@@ -9,6 +9,7 @@
 (pl:transcode-to-string '(if x y z))
 (pl:transcode-to-string '(lambda (x y z) some-symbol))
 (pl:transcode-to-string '(lambda (a b c) (progn a b some-symbol)))
+(pl:transcode-to-string '(: a c))
 
 (pl:transcode-to-string '(if (< x 10)
 							 (progn 

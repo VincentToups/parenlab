@@ -1,5 +1,14 @@
 (require 'shadchen)
 
+(defun pl:symbol-with-indexing-syntax (x)
+  "Return T when x is a non-keyword symbol with indexing syntax."
+  (and (symbolp x)
+	   (not (keywordp x))
+	   (let* ((parts (split-string (symbol-name x) ":"))
+			  (n (length parts)))
+		 (or (= n 2)
+			 (= n 3)))))
+
 (defun pl:non-keyword-symbolp (x)
   "T when X is a symbol but not a keyword."
   (and (symbolp x)
@@ -38,10 +47,36 @@
 (defun-match- pl:transcode-to-string (form)
   (with-temp-buffer 
 	(pl:transcode form)
-	(buffer-substring (point-min)
+ 	(buffer-substring (point-min)
 					  (point-max))))
 
-(defun-match- pl:transcode ((p #'pl:non-keyword-symbolp s))
+(defun pl:=/c (a)
+  (eval `(lambda (b) (= ,a b))))
+
+(defun pl:read-from-string (s)
+  (match (read-from-string s)
+		 ((cons r (p (pl:=/c (length s))))
+		  r)))
+
+(defun-match- pl:transcode ((p #'pl:symbol-with-indexing-syntax s))
+  "Symbols are mangled and inserted as variables."
+  (match (split-string (symbol-name s) ":")
+		 ((list start stop)
+		  (pl:insertf "((")
+		  (pl:transcode (pl:read-from-string start))
+		  (pl:insertf "):(")
+		  (pl:transcode (pl:read-from-string stop))
+		  (pl:insertf "))"))
+		 ((list start step stop)
+		  (pl:insertf "((")
+		  (pl:transcode (pl:read-from-string start))
+		  (pl:insertf "):(")
+		  (pl:transcode (pl:read-from-string step))
+		  (pl:insertf "):(")
+		  (pl:transcode (pl:read-from-string stop))
+		  (pl:insertf "))"))))
+
+(defun-match pl:transcode ((p #'pl:non-keyword-symbolp s))
   "Symbols are mangled and inserted as variables."
   (pl:insertf "%s" (pl:mangle s)))
 
@@ -66,7 +101,7 @@
   (pl:transcode (pl:transcode-to-string form)))
 
 (defun-match pl:transcode ((list 'setq 
-								 (p #'symbolp target) 
+								 target 
 								 value))
   "Set is transcoded to assignment."
   (pl:transcode target)
@@ -102,6 +137,35 @@ regular, non-functional if statement."
 	(pl:transcode-sequence false-body)
 	(pl:insertf "end\n")
 	(indent-region start (point))))
+
+(defun-match pl:transcode ((list ': first last))
+  "Transcode short array creation."
+  (pl:insertf "((")
+  (pl:transcode first)
+  (pl:insertf "):(")
+  (pl:transcode last)
+  (pl:insertf "))"))
+
+(defun-match pl:transcode ((list ': first step last))
+  "Transcode short array creation."
+  (pl:insertf "((")
+  (pl:transcode first)
+  (pl:insertf "):(")
+  (pl:transcode step)
+  (pl:insertf "):(")
+  (pl:transcode last)
+  (pl:insertf "))"))
+
+(defun-match pl:transcode ((list-rest '{} variable indexes))
+  "Encode a cell array access."
+  (pl:transcode variable)
+  (pl:insertf "{")
+  (loop for index in indexes 
+		and i from 1 do
+		(pl:transcode index)
+		when (< i (length indexes))
+		do (pl:insertf ", "))
+  (pl:insertf "}"))
 
 (defun-match pl:transcode ((list 'if condition 
 								 (list-rest 'block true-body)))
@@ -253,8 +317,21 @@ regular, non-functional if statement."
   (pl:insertf ";\n")
   (recur forms))
 
-(defmacro pl:defun (oargs name iargs &body body)
+(defmacro* pl:defun (oargs name iargs &body body)
   "Define a matlab function by creating a file and filling it in
 with the transcoded code."
   `(pl:transcode '(defun ,oargs ,name ,iargs ,@body)))
+
+
+(pl:defun (r) ++ (varargin)
+				 "What?"
+				 (setq r 0) 
+				 (for x varargin
+					  (setq r (+ r ({} x 1)))))
+
+(pl:defun (r) ** (varargin)
+		  "What?"
+		  (setq r 1) 
+		  (for x varargin
+			   (setq r (* r ({} x 1)))))
 
