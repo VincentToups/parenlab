@@ -355,5 +355,3 @@ with the transcoded code."
 		  (setq r 1) 
 		  (for x varargin
 			   (setq r (* r ({} x 1)))))
-
-
