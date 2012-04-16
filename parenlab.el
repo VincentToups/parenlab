@@ -300,7 +300,6 @@ regular, non-functional if statement."
 	  (pl:transcode-sequence body)
 	  (basic-save-buffer))
 	(kill-buffer output-buffer)))
-
 (defvar *pl-macros* (make-hash-table))
 
 (defun pl:pl-macrop (symbol)
@@ -320,6 +319,9 @@ regular, non-functional if statement."
 
 (pl:def-pl-macro with (symbol value &body body)
 				 `(funcall (lambda (,symbol) ,@body) ,value))
+
+(pl:def-pl-macro let (bindings &body body)
+				 `(funcall (lambda ,(mapcar #'car bindings) ,@body) ,@(mapcar #'cadr bindings)))
 
 (defun-match pl:transcode ((list-rest (p #'pl:non-keyword-symbolp the-function) arguments))
   "Handle the-function calls."
