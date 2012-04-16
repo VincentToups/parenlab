@@ -48,6 +48,7 @@
 
 (defun-match- pl:transcode-to-string (form)
   (with-temp-buffer 
+	(matlab-mode)
 	(pl:transcode form)
  	(buffer-substring (point-min)
 					  (point-max))))
@@ -152,7 +153,9 @@
 (defun-match pl:transcode ((list-rest 'block body))
   "A block is inserted directly into the code as a sequence of
   operations."
-  (pl:transcode-sequence body))
+  (let ((start (point-min)))
+	(pl:transcode-sequence body)
+	(indent-region start (point-max))))
 
 (defun-match pl:transcode ((list 'if condition 
 								 (list-rest 'block true-body)
@@ -209,6 +212,24 @@ regular, non-functional if statement."
 	(pl:insertf "\n")
 	(pl:transcode-sequence true-body)
 	(pl:insertf "end\n")))
+
+(defun-match pl:transcode ((list 'flat-cond))
+  "An empty flat cond does nothing.")
+
+(defun-match pl:transcode ((list-rest 'flat-cond bodies))
+  (let ((n  (length bodies))
+		(start (point)))
+	(loop 
+	 for body in bodies 
+	 and i from 1 do
+	 (match body 
+			((list-rest condition body)
+			 (pl:insertf (if (= i 1) "if " "elseif "))
+			 (pl:transcode condition)
+			 (pl:insertf "\n")
+			 (pl:transcode-sequence body))))
+	(pl:insertf "end\n")
+	(indent-region start (point))))
 
 (defun-match pl:transcode ((list 'if condition true false))
   "If is transcoded to a functional if."
@@ -329,6 +350,15 @@ regular, non-functional if statement."
 						((list) `(progn ,@body))
 						((list-rest (list name expr) rest-bindings)
 						 `(with ,name ,expr (let* ,rest-bindings ,@body)))))
+
+(pl:def-pl-macro cond (&rest legs)
+				 `(val-cond 
+				   ,@(loop for leg in legs collect 
+						   `(cell-array 
+							 (lambda () ,(car leg))
+							 ,@(mapcar 
+								(lambda (toe)
+								  `(quote ,toe)) (cdr leg))))))
 
 (pl:def-pl-macro let (bindings &body body)
 				 (match body
