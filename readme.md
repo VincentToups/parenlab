@@ -1,6 +1,8 @@
 Parenlab
 ========
 
+(Note: parenlab depends on [shadchen-el][] and requires Emacs).
+
 Parenlab is a dirty cross compiler which forces an s-expression front
 end onto Matlab, a bit like parenscript for Javascript.
 
@@ -48,3 +50,5 @@ user can define new macros that operate at the level of the
 s-expression representation of Matlab code.  Underneath, the generated
 code has access to all the powerful analytic and plotting abilities of
 Matlab (or Octave, if you are running it.)
+
+[shadchen-el]:https://github.com/VincentToups/shadchen-el

@@ -393,3 +393,9 @@ with the transcoded code."
 		  (setq r 1) 
 		  (for x varargin
 			   (setq r (* r ({} x 1)))))
+
+(pl:defun (r) -> (struct varargin)
+		  (setq r struct)
+		  (for i (: 1 (length varargin))
+			   (setq key ({} varargin i))
+			   (setq r (struct-access r key))))
