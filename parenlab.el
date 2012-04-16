@@ -60,7 +60,12 @@
 		 ((cons r (p (pl:=/c (length s))))
 		  r)))
 
-(defun-match- pl:transcode ((p #'pl:symbol-with-indexing-syntax s))
+(defun-match- pl:transcode (nil)
+  "Nil is transcoded to an empty array."
+  (pl:insertf "[]"))
+
+
+(defun-match pl:transcode ((p #'pl:symbol-with-indexing-syntax s))
   "Symbols are mangled and inserted as variables."
   (match (split-string (symbol-name s) ":")
 		 ((list start stop)
@@ -99,6 +104,7 @@
   "Numbers are inserted as is."
   (pl:insertf "%s" n))
 
+
 (defun-match pl:transcode ((p #'keywordp k))
   "Keywords are transcoded as symbols but into strings."
   (pl:insertf "'%s'" (pl:mangle (substring (symbol-name k) 1))))
@@ -114,6 +120,12 @@
   "Quotations are evaluated to strings whose value under eval is
   the value of the forms."
   (pl:transcode (pl:transcode-to-string form)))
+
+(defun-match pl:transcode ((list 'not form))
+  "Translate the not operator."
+  (pl:insertf "~(")
+  (pl:transcode form)
+  (pl:insertf ")"))
 
 (defun-match pl:transcode ((list 'setq 
 								 target 
@@ -275,6 +287,16 @@ regular, non-functional if statement."
 	  (pl:insertf ")\n")
 	  (when (stringp (car body))
 		(pl:insertf "%s\n" (pl:fix-comment-string (car body))))
+	  (pl:transcode-sequence body)
+	  (basic-save-buffer))
+	(kill-buffer output-buffer)))
+
+(defun-match pl:transcode ((list-rest 'script name body))
+  "Encode a body into a script."
+  (let ((output-buffer (find-file-noselect (concat (pl:mangle (symbol-name name)) ".m"))))
+	(with-current-buffer output-buffer
+	  (delete-region (point-min)
+					 (point-max))
 	  (pl:transcode-sequence body)
 	  (basic-save-buffer))
 	(kill-buffer output-buffer)))
