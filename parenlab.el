@@ -135,12 +135,16 @@
   (pl:insertf " = ")
   (pl:transcode value))
 
+(defun-match pl:transcode ((list 'progn form))
+  "Progn with a single form is the form itself."
+  (pl:transcode form))
+
 (defun-match pl:transcode ((list-rest 'progn forms))
   "Progn is transcoded to a hack function call."
   (pl:insertf "progn(")
   (loop for form in forms do
 		(let ((string (pl:transcode-to-string form)))
-		  (pl:transcode string))
+		  (pl:transcode (concat string ";"))) 
 		(pl:insertf ", "))
   (delete-region (point) (- (point) 2))
   (pl:insertf ")"))
@@ -320,8 +324,18 @@ regular, non-functional if statement."
 (pl:def-pl-macro with (symbol value &body body)
 				 `(funcall (lambda (,symbol) ,@body) ,value))
 
+(pl:def-pl-macro let* (bindings &body body)
+				 (match bindings 
+						((list) `(progn ,@body))
+						((list-rest (list name expr) rest-bindings)
+						 `(with ,name ,expr (let* ,rest-bindings ,@body)))))
+
 (pl:def-pl-macro let (bindings &body body)
-				 `(funcall (lambda ,(mapcar #'car bindings) ,@body) ,@(mapcar #'cadr bindings)))
+				 (match body
+						((list real-body)
+						 `(funcall (lambda ,(mapcar #'car bindings) ,@body) ,@(mapcar #'cadr bindings)))
+						((list-rest real-body) 
+						 `(funcall (lambda ,(mapcar #'car bindings) (progn ,@real-body)) ,@(mapcar #'cadr bindings)))))
 
 (defun-match pl:transcode ((list-rest (p #'pl:non-keyword-symbolp the-function) arguments))
   "Handle the-function calls."
