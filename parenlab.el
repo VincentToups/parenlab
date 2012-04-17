@@ -369,16 +369,21 @@ regular, non-functional if statement."
 
 (defun-match pl:transcode ((list-rest (p #'pl:non-keyword-symbolp the-function) arguments))
   "Handle the-function calls."
-  (pl:transcode the-function)
-  (pl:insertf "(")
-  (loop for arg in arguments and
-		i from 1 
-		do 
-		(pl:transcode arg)
-		when (< i (length arguments))
-		do
-		(pl:insertf ", "))
-  (pl:insertf ")"))
+  (let ((start (point)))
+	(pl:transcode the-function)
+	(pl:insertf "(")
+	(loop for arg in arguments and
+		  i from 1 
+		  do 
+		  (pl:transcode arg)
+		  when (< i (length arguments))
+		  do
+		  (pl:insertf ", ")
+		  (if (and (> i 3)
+				   (= 0 (mod i 2)))
+			  (pl:insertf "...\n") ))
+	(pl:insertf ")")
+	(indent-region start (point))))
 
 (defun-match- pl:maybe-empty-list-of-symbols (nil) t)
 (defun-match pl:maybe-empty-list-of-symbols ((and (p #'listp)
