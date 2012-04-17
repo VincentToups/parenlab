@@ -241,6 +241,17 @@ regular, non-functional if statement."
   (pl:transcode false)
   (pl:insertf ")"))
 
+(defun-match pl:transcode ((list-rest 'or clauses))
+  (let ((n (length clauses)))
+	(pl:insertf "orFunction(")
+	(loop for c in clauses 
+		  and i from 1 do 
+		  (pl:insertf "@()")
+		  (pl:transcode c)
+		  when (not (= i n)) do
+		  (pl:insertf ", "))
+	(pl:insertf ")")))
+
 (defun-match pl:transcode ((list 'lambda (p #'listp args) form))
   "Lambda is transcoded to a regular @ lambda."
   (pl:insertf "@(")
@@ -315,6 +326,9 @@ regular, non-functional if statement."
 	  (pl:transcode-sequence body)
 	  (basic-save-buffer))
 	(kill-buffer output-buffer)))
+
+(defun-match pl:transcode ((list-rest 'defmacro name (p #'listp args) body))
+  (eval `(pl:def-pl-macro ,name ,args ,@body)))
 
 (defun-match pl:transcode ((list-rest 'script name body))
   "Encode a body into a script."
@@ -434,3 +448,9 @@ with the transcoded code."
 		  (for i (: 1 (length varargin))
 			   (setq key ({} varargin i))
 			   (setq r (struct-access r key))))
+
+(defmacro* pl:pl (&body body)
+  "Transcode BODY to matlab."
+  `(pl:transcode ',body))
+
+(provide 'parenlab)
