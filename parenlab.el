@@ -2,6 +2,8 @@
 
 (setq max-lisp-eval-depth 1000)
 
+(defvar pl:transplant-scripts-and-functions t)
+
 (defun pl:symbol-with-indexing-syntax (x)
   "Return T when x is a non-keyword symbol with indexing syntax."
   (and (symbolp x)
@@ -251,6 +253,16 @@ regular, non-functional if statement."
   (pl:transcode false)
   (pl:insertf ")"))
 
+(defun-match pl:transcode ((list 'if condition true))
+  "If is transcoded to a functional if."
+  (pl:insertf "fif(")
+  (pl:transcode condition)
+  (pl:insertf ", @()")
+  (pl:transcode true)
+  (pl:insertf ", @()")
+  (pl:transcode nil)
+  (pl:insertf ")"))
+
 (defun-match pl:transcode ((list-rest 'or clauses))
   (let ((n (length clauses)))
 	(pl:insertf "orFunction(")
@@ -322,6 +334,7 @@ regular, non-functional if statement."
 									  (pl:arglist inargs) 
 									  body))
   "Transcode a function into an m-file."
+  
   (let* ((start (point))
 		 (output-buffer 
 		  (if pl:inside-previous-defun (current-buffer)
