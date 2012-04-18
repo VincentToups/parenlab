@@ -432,13 +432,13 @@ with the transcoded code."
 
 
 (pl:defun (r) ++ (varargin)
-		  "What?"
+		  "Add as many numbers as you'd like."
 		  (setq r 0) 
 		  (for x varargin
 			   (setq r (+ r ({} x 1)))))
 
 (pl:defun (r) ** (varargin)
-		  "What?"
+		  "Multiply as many numbers as you'd like."
 		  (setq r 1) 
 		  (for x varargin
 			   (setq r (* r ({} x 1)))))
