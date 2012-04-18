@@ -11,6 +11,12 @@
 		 (or (= n 2)
 			 (= n 3)))))
 
+(defvar pl:kill-opened-transcode-buffers nil)
+(defun* pl:maybe-kill-buffer (&optional (buffer (current-buffer)))
+  (if pl:kill-opened-transcode-buffers 
+	  (kill-buffer buffer)
+	nil))
+
 (defun pl:non-keyword-symbolp (x)
   "T when X is a symbol but not a keyword."
   (and (symbolp x)
@@ -252,6 +258,17 @@ regular, non-functional if statement."
 		  (pl:insertf ", "))
 	(pl:insertf ")")))
 
+(defun-match pl:transcode ((list-rest 'and clauses))
+  (let ((n (length clauses)))
+	(pl:insertf "andFunction(")
+	(loop for c in clauses 
+		  and i from 1 do 
+		  (pl:insertf "@()")
+		  (pl:transcode c)
+		  when (not (= i n)) do
+		  (pl:insertf ", "))
+	(pl:insertf ")")))
+
 (defun-match pl:transcode ((list 'lambda (p #'listp args) form))
   "Lambda is transcoded to a regular @ lambda."
   (pl:insertf "@(")
@@ -325,7 +342,7 @@ regular, non-functional if statement."
 		(pl:insertf "%s\n" (pl:fix-comment-string (car body))))
 	  (pl:transcode-sequence body)
 	  (basic-save-buffer))
-	(kill-buffer output-buffer)))
+	(pl:maybe-kill-buffer output-buffer)))
 
 (defun-match pl:transcode ((list-rest 'defmacro name (p #'listp args) body))
   (eval `(pl:def-pl-macro ,name ,args ,@body)))
@@ -338,7 +355,7 @@ regular, non-functional if statement."
 					 (point-max))
 	  (pl:transcode-sequence body)
 	  (basic-save-buffer))
-	(kill-buffer output-buffer)))
+	(pl:maybe-kill-buffer output-buffer)))
 (defvar *pl-macros* (make-hash-table))
 
 (defun pl:pl-macrop (symbol)
@@ -454,3 +471,4 @@ with the transcoded code."
   `(pl:transcode ',body))
 
 (provide 'parenlab)
+
