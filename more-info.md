@@ -183,6 +183,39 @@ The rule of thumb is write Matlab code with s-expressions, not Lisp
 code that calls Matlab functions.  Parenlab tries to bridge the gap
 but in some ways Matlab is too limited.
 
+If Statements
+-------------
+
+If in Matlab is "flat", in that each branch is a series of statements
+or expressions and the if statement itself doesn't return a value.
+Parenlab if statements are not flat - they return the value of
+whatever branch is evaluated.  
+
+This rule is sometimes inconveneint for the Matlab idiom, so it can be
+disabled if the branches are `blocks`.  A statement of the form:
+
+    (if condition 
+      (block 
+        <some-code>)
+      (block 
+        <some-other-code>))
+
+Transcodes to:
+
+     if condition 
+        some code
+     else
+        some other code
+     end
+
+Ordinarily, if expands to
+
+    fif(@()condition, @()true-code, @()false-code)
+
+Here we use the trick of using lambda to delay evaluation.  This if
+expansion cannot perform side effects, unfortunately.  Use `(block)`
+legs if you want regular matlab semantics.  Both legs must be blocks.
+
 Cell Arrays
 -----------
 
