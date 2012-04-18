@@ -5,3 +5,4 @@ for i = ((1):(length(varargin)))
   r = structAccess(r, key);
 end
 ;
+end

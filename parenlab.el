@@ -71,6 +71,10 @@
   "Nil is transcoded to an empty array."
   (pl:insertf "[]"))
 
+(defun-match- pl:transcode ('return)
+  "Return is transcoded as return."
+  (pl:insertf "return"))
+
 
 (defun-match pl:transcode ((p #'pl:symbol-with-indexing-syntax s))
   "Symbols are mangled and inserted as variables."
@@ -311,16 +315,23 @@ regular, non-functional if statement."
   (pl:insertf "@")
   (pl:transcode s))
 
+(defvar pl:inside-previous-defun nil)
 (defun-match pl:transcode ((list-rest 'defun
 									  (pl:arglist outargs)
 									  (p #'symbolp name) 
 									  (pl:arglist inargs) 
 									  body))
   "Transcode a function into an m-file."
-  (let ((output-buffer (find-file-noselect (concat (pl:mangle (symbol-name name)) ".m"))))
+  (let* ((start (point))
+		 (output-buffer 
+		  (if pl:inside-previous-defun (current-buffer)
+			(find-file-noselect (concat (pl:mangle (symbol-name name)) ".m"))))
+		 (was-inside pl:inside-previous-defun)
+		 (pl:inside-previous-defun t))
 	(with-current-buffer output-buffer
-	  (delete-region (point-min)
-					 (point-max))
+	  (when (not was-inside)
+		(delete-region (point-min)
+					   (point-max))) 
 	  (pl:insertf "function [")
 	  (loop for o in outargs 
 			and i from 1
@@ -341,8 +352,10 @@ regular, non-functional if statement."
 	  (when (stringp (car body))
 		(pl:insertf "%s\n" (pl:fix-comment-string (car body))))
 	  (pl:transcode-sequence body)
+	  (pl:insertf "end\n")
 	  (basic-save-buffer))
-	(pl:maybe-kill-buffer output-buffer)))
+	(when (not was-inside)
+	  (pl:maybe-kill-buffer output-buffer))))
 
 (defun-match pl:transcode ((list-rest 'defmacro name (p #'listp args) body))
   (eval `(pl:def-pl-macro ,name ,args ,@body)))
