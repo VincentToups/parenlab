@@ -212,6 +212,28 @@ regular, non-functional if statement."
   (pl:transcode last)
   (pl:insertf "))"))
 
+(defun-match pl:transcode ((list '.. variable field))
+  "Encode field access/setting."
+  (pl:transcode variable)
+  (pl:insertf ".(")
+  (pl:transcode field)
+  (pl:insertf ")"))
+
+(defun-match pl:transcode ((list '.. variable (list-rest indexes) field))
+  "Encode field access/setting."
+  (pl:transcode variable)
+  (pl:insertf "(")
+  (loop for item in indexes 
+		and i from 1 do
+		(pl:transcode item)
+		when (not (= i (length indexes)))
+		do (pl:insertf ", "))
+  (pl:insertf ")")
+  (pl:insertf ".(")
+  (pl:transcode field)
+  (pl:insertf ")"))
+
+
 (defun-match pl:transcode ((list-rest '{} variable indexes))
   "Encode a cell array access."
   (pl:transcode variable)
@@ -509,6 +531,9 @@ with the transcoded code."
 		  (for i (: 1 (length varargin))
 			   (setq key ({} varargin i))
 			   (setq r (struct-access r key))))
+
+(pl:defun (s) extend-struct (s f val)
+		  (setq (.. s f) val))
 
 (defmacro* pl:pl (&body body)
   "Transcode BODY to matlab."
