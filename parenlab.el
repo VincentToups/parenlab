@@ -74,11 +74,11 @@
   "Nil is transcoded to an empty array."
   (pl:insertf "[]"))
 
-(defun-match- pl:transcode ('return)
+(defun-match pl:transcode ('return)
   "Return is transcoded as return."
   (pl:insertf "return"))
 
-(defun-match- pl:transcode ((or : (list :)))
+(defun-match pl:transcode ((or : (list :)))
   "Insert a naked :"
   (pl:insertf ":"))
 
@@ -149,13 +149,29 @@
   (pl:transcode form)
   (pl:insertf ")"))
 
-(defun-match pl:transcode ((list 'setq 
+(defun-match pl:transcode ((list (or 'setq :=) 
 								 target 
 								 value))
   "Set is transcoded to assignment."
   (pl:transcode target)
   (pl:insertf " = ")
   (pl:transcode value))
+
+(defun pl:not-empty (l)
+  "True when l is a non-empty list."
+  (and (listp l)
+	   (not (null l))))
+
+(defun-match pl:transcode ((list-rest (or 'setq :=) 
+									  target 
+									  value 
+									  (p #'pl:not-empty others)))
+  "Set is transcoded to assignment."
+  (pl:transcode target)
+  (pl:insertf " = ")
+  (pl:transcode value)
+  (pl:insertf "; ")
+  (recur `(setq ,@others)))
 
 (defun-match pl:transcode ((list 'progn form))
   "Progn with a single form is the form itself."
@@ -343,6 +359,25 @@ regular, non-functional if statement."
 	(pl:transcode v)
 	(pl:insertf " = ")
 	(pl:transcode expr)
+	(pl:insertf "\n")
+	(pl:transcode-sequence body)
+	(pl:insertf "end\n")
+	(indent-region start (point))))
+
+(defun-match pl:transcode ((list-rest 'for (list (p #'symbolp index) 
+												 (p #'symbolp value)) 
+									  expr body))
+  "Expand a for loop with index expression."
+  (let ((start (point))
+		(expr-value (gensym "for-loop-value-")))
+	(pl:transcode `(setq ,expr-value ,expr))
+	(pl:insertf ";\n")
+	(pl:insertf "for ")
+	(pl:transcode index)
+	(pl:insertf " = ")
+	(pl:transcode `(: 1 (length ,expr-value)))
+	(pl:insertf "\n")
+	(pl:transcode `(setq ,value (,expr-value ,index)))
 	(pl:insertf "\n")
 	(pl:transcode-sequence body)
 	(pl:insertf "end\n")
