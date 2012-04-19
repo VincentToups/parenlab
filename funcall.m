@@ -9,7 +9,11 @@ catch
       names = [names name ','];
     end
     names(end) = ']';
+    %try
     eval(sprintf('%s = f(varargin{:});', names));
+    %catch
+    %  keyboard
+    %end
     varargout = {};
     for i=1:nargout
       varargout{i} = eval(sprintf('n%d;',i));

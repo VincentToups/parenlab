@@ -1,6 +1,7 @@
 (require 'shadchen)
 
-(setq max-lisp-eval-depth 1000)
+(setq max-lisp-eval-depth 10000)
+(setq max-specpdl-size 2000)
 
 (defvar pl:transplant-scripts-and-functions t)
 
@@ -77,6 +78,9 @@
   "Return is transcoded as return."
   (pl:insertf "return"))
 
+(defun-match- pl:transcode ((or : (list :)))
+  "Insert a naked :"
+  (pl:insertf ":"))
 
 (defun-match pl:transcode ((p #'pl:symbol-with-indexing-syntax s))
   "Symbols are mangled and inserted as variables."
@@ -128,6 +132,11 @@
 (defun-match pl:transcode ((p #'stringp s))
   "Strings are transcoded to matlab strings, escaping single quotes."
   (pl:insertf "'%s'" (pl:escape-single-quotes s)))
+
+(defun-match pl:transcode ((list 'global (p #'symbolp name)))
+  "Transcodes a global definition."
+  (pl:insertf "global ")
+  (pl:transcode name))
 
 (defun-match pl:transcode ((list 'quote form))
   "Quotations are evaluated to strings whose value under eval is
@@ -262,6 +271,15 @@ regular, non-functional if statement."
   (pl:insertf ", @()")
   (pl:transcode nil)
   (pl:insertf ")"))
+
+(defun-match pl:transcode ((list 'try (list-rest code) (list-rest catch-clause)))
+  "Transcode a try/catch block."
+  (let ((start (point)))
+	(pl:insertf "try\n")
+	(pl:transcode-sequence code)
+	(pl:insertf "catch\n")
+	(pl:transcode-sequence catch-clause)
+	(pl:insertf "end")))
 
 (defun-match pl:transcode ((list-rest 'or clauses))
   (let ((n (length clauses)))
