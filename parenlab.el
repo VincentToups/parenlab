@@ -33,10 +33,16 @@
 		 (s1 (replace-regexp-in-string "-\\([a-z]\\)" 
 									   (lambda (x)
 										 (upcase (substring x 1))) 
-									   s)))
+									   s))
+		 (s1 (replace-regexp-in-string (regexp-quote "%")
+									   "modsign"
+									   s1))
+		 (s1 (if (string= "." (substring s1 0 1))
+				 (concat "dot" (substring s1 1))
+			   s1)))
 	(replace-regexp-in-string 
 	 (rx 
-	  (| "+" "-" "*" "$" "!" ":" "/" "\\" "#" "@" "?" "="
+	  (| "+" "-" "*" "%" "$" "&" "^" "!" ":" "/" "\\" "#" "@" "?" "="
 		 "<" ">"))
 	 (match-lambda 
 	  ("+" "plus")
@@ -46,9 +52,12 @@
 	  (">" "greaterThan")
 	  ("$" "cash")
 	  ("=" "equal")
+	  ("%" "modsign")
 	  ("!" "bang")
 	  ("?" "who")
 	  (":" ":")
+	  ("&" "ampersand")
+	  ("^" "caret")
 	  ("/" "divide")
 	  ("\\" "mdivide")
 	  ("#" "hash")
@@ -142,6 +151,10 @@
   "Quotations are evaluated to strings whose value under eval is
   the value of the forms."
   (pl:transcode (pl:transcode-to-string form)))
+
+(defun-match pl:transcode ((list-rest 'elisp forms))
+  "Escape and execute lisp FORMS."
+  (eval `(progn ,@forms)))
 
 (defun-match pl:transcode ((list 'not form))
   "Translate the not operator."
@@ -383,6 +396,23 @@ regular, non-functional if statement."
 	(pl:insertf "end\n")
 	(indent-region start (point))))
 
+(defun-match pl:transcode ((list-rest 'forcell 
+									  (p #'symbolp v) 
+									  expr 
+									  body))
+  (pl:transcode `(for ,v expr
+					  (setq ,v ({} ,v 1))
+					  ,@body)))
+
+(defun-match pl:transcode ((list-rest 'forcell 
+									  (list (p #'symbolp i)
+											(p #'symbolp v)) 
+									  expr 
+									  body))
+  (pl:transcode `(for (,i ,v) ,expr
+					  (setq ,v ({} ,v 1))
+					  ,@body)))
+
 (defun-match pl:transcode ((list 'literally string))
   "Allows you to insert code directly into the output stream."
   (pl:insertf string))
@@ -511,9 +541,7 @@ regular, non-functional if statement."
 		  when (< i (length arguments))
 		  do
 		  (pl:insertf ", ")
-		  (if (and (> i 3)
-				   (= 0 (mod i 2)))
-			  (pl:insertf "...\n") ))
+		  )
 	(pl:insertf ")")
 	(indent-region start (point))))
 
@@ -570,9 +598,12 @@ with the transcoded code."
 (pl:defun (s) extend-struct (s f val)
 		  (setq (.. s f) val))
 
+(pl:def-pl-macro dont-do (&rest body)
+				 ())
+
 (defmacro* pl:pl (&body body)
   "Transcode BODY to matlab."
-  `(pl:transcode ',body))
+  `(pl:transcode '(block ,@body)))
 
 (provide 'parenlab)
 
