@@ -28,7 +28,8 @@
 	  ;; emessage which sends a message to emacs from matlab, it is
 	  ;; not included with this library.
 	  (comint-send-strings (get-buffer pla:matlab-buffer)
-						   (pl:transcode-to-string code)))))
+						   (pl:replace-newlines-with-semicolons
+							(pl:transcode-to-string code))))))
 
 (defun parenlab-do-region (s e)
   (interactive "r")

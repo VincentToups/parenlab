@@ -194,8 +194,7 @@
   "Progn is transcoded to a hack function call."
   (pl:insertf "progn(")
   (loop for form in forms do
-		(let ((string (pl:transcode-to-string form)))
-		  (pl:transcode (concat string ";"))) 
+		(pl:transcode form :as-expression) 
 		(pl:insertf ", "))
   (delete-region (point) (- (point) 2))
   (pl:insertf ")"))
@@ -400,7 +399,7 @@ regular, non-functional if statement."
 									  (p #'symbolp v) 
 									  expr 
 									  body))
-  (pl:transcode `(for ,v expr
+  (pl:transcode `(for ,v ,expr
 					  (setq ,v ({} ,v 1))
 					  ,@body)))
 
@@ -513,14 +512,19 @@ regular, non-functional if statement."
 						((list-rest (list name expr) rest-bindings)
 						 `(with ,name ,expr (let* ,rest-bindings ,@body)))))
 
-(pl:def-pl-macro cond (&rest legs)
-				 `(val-cond 
-				   ,@(loop for leg in legs collect 
-						   `(cell-array 
-							 (lambda () ,(car leg))
-							 ,@(mapcar 
-								(lambda (toe)
-								  `(quote ,toe)) (cdr leg))))))
+(pl:def-pl-macro 
+ cond (&rest legs)
+ (let* ((branch-bodies 
+		 (mapcar (lambda (body)
+				   `(lambda () (progn ,@body))) legs))
+		(conditions (mapcar (lambda (leg)
+							  `(lambda () ,(car leg))) legs))
+		(body-formatted 
+		 (cons 'cell-array 
+			   (mapcar* (lambda (c b)
+						  `(cell-array ,c ,b)) conditions 
+						  branch-bodies))))
+   `(funcall (cond-helper-first-true ,body-formatted))))
 
 (pl:def-pl-macro let (bindings &body body)
 				 (match body
@@ -544,6 +548,34 @@ regular, non-functional if statement."
 		  )
 	(pl:insertf ")")
 	(indent-region start (point))))
+
+(defun pl:statement-formp (form)
+  (match form 
+		 ((list-rest 'for _) t)
+		 ((list-rest 'forcell _) t)
+		 ((list-rest 'flat-cond _) t)
+		 ((list-rest 'setq _) t)
+		 ((list-rest := _) t)
+		 ((list 'if (list-rest 'block _)
+				(list-rest 'block _)) t)
+		 ((list 'if (list-rest 'block _)) t)
+		 (_ nil)))
+
+(defun pl:replace-newlines-with-semicolons (s)
+  (replace-regexp-in-string 
+   (regexp-quote (format "\n")) " ; " s))
+
+(defun-match pl:transcode ((p #'pl:statement-formp the-form) :as-expression)
+  "Setq can be transcoded as an expression via the use of evalc and quotation."
+  (pl:insertf "evalc(")
+  (pl:transcode (pl:replace-newlines-with-semicolons 
+				 (pl:transcode-to-string the-form)))
+  (pl:insertf ")"))
+
+(defun-match pl:transcode (_ :as-expression)
+  "Handle transcoding forms when an expression is required.  Most
+forms transcode identically so this is a drop in replacement."
+  (recur _))
 
 (defun-match- pl:maybe-empty-list-of-symbols (nil) t)
 (defun-match pl:maybe-empty-list-of-symbols ((and (p #'listp)
