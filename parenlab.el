@@ -182,7 +182,7 @@
   "Set is transcoded to assignment."
   (pl:transcode target)
   (pl:insertf " = ")
-  (pl:transcode value)
+  (pl:transcode value :as-expression)
   (pl:insertf "; ")
   (recur `(setq ,@others)))
 
@@ -486,6 +486,7 @@ regular, non-functional if statement."
 	  (pl:transcode-sequence body)
 	  (basic-save-buffer))
 	(pl:maybe-kill-buffer output-buffer)))
+
 (defvar *pl-macros* (make-hash-table))
 
 (defun pl:pl-macrop (symbol)
@@ -541,7 +542,7 @@ regular, non-functional if statement."
 	(loop for arg in arguments and
 		  i from 1 
 		  do 
-		  (pl:transcode arg)
+		  (pl:transcode arg :as-expression)
 		  when (< i (length arguments))
 		  do
 		  (pl:insertf ", ")
