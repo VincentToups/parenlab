@@ -5,6 +5,12 @@
 
 (defvar pl:transplant-scripts-and-functions t)
 
+(defvar pl:disable-indentation nil)
+
+(defun pl:indent-region (s e)
+  (unless pl:disable-indentation 
+	(indent-region s e)))
+
 (defun pl:symbol-with-indexing-syntax (x)
   "Return T when x is a non-keyword symbol with indexing syntax."
   (and (symbolp x)
@@ -119,7 +125,7 @@
 			(progn (pl:transcode item)
 				   (pl:insertf " "))))
 	(pl:insertf "]")
-	(indent-region start (point))))
+	(pl:indent-region start (point))))
 
 
 (defun-match pl:transcode ((p #'pl:non-keyword-symbolp s))
@@ -204,7 +210,7 @@
   operations."
   (let ((start (point-min)))
 	(pl:transcode-sequence body)
-	(indent-region start (point-max))))
+	(pl:indent-region start (point-max))))
 
 (defun-match pl:transcode ((list 'if condition 
 								 (list-rest 'block true-body)
@@ -219,7 +225,7 @@ regular, non-functional if statement."
 	(pl:insertf "else\n")
 	(pl:transcode-sequence false-body)
 	(pl:insertf "end\n")
-	(indent-region start (point))))
+	(pl:indent-region start (point))))
 
 
 (defun-match pl:transcode ((list ': first last))
@@ -300,7 +306,7 @@ regular, non-functional if statement."
 			 (pl:insertf "\n")
 			 (pl:transcode-sequence body))))
 	(pl:insertf "end\n")
-	(indent-region start (point))))
+	(pl:indent-region start (point))))
 
 (defun-match pl:transcode ((list 'if condition true false))
   "If is transcoded to a functional if."
@@ -374,7 +380,15 @@ regular, non-functional if statement."
 	(pl:insertf "\n")
 	(pl:transcode-sequence body)
 	(pl:insertf "end\n")
-	(indent-region start (point))))
+	(pl:indent-region start (point))))
+
+(defun-match pl:transcode ((list-rest 'while expr body))
+  (let ((start (point)))
+	(pl:insertf "while ")
+	(pl:transcode expr)
+	(pl:insertf "\n")
+	(pl:transcode-sequence body)
+	(pl:insertf "end\n")))
 
 (defun-match pl:transcode ((list-rest 'for (list (p #'symbolp index) 
 												 (p #'symbolp value)) 
@@ -393,7 +407,7 @@ regular, non-functional if statement."
 	(pl:insertf "\n")
 	(pl:transcode-sequence body)
 	(pl:insertf "end\n")
-	(indent-region start (point))))
+	(pl:indent-region start (point))))
 
 (defun-match pl:transcode ((list-rest 'forcell 
 									  (p #'symbolp v) 
@@ -424,7 +438,7 @@ regular, non-functional if statement."
 	(pl:insertf "\n")
 	(pl:transcode-sequence body)
 	(pl:insertf "end\n")
-	(indent-region start (point))))
+	(pl:indent-region start (point))))
 
 (defun-match pl:transcode ((list 'function (p #'symbolp s)))
   "Encode a function namespace query."
@@ -444,7 +458,12 @@ regular, non-functional if statement."
 		  (if pl:inside-previous-defun (current-buffer)
 			(find-file-noselect (concat (pl:mangle (symbol-name name)) ".m"))))
 		 (was-inside pl:inside-previous-defun)
-		 (pl:inside-previous-defun t))
+		 (pl:inside-previous-defun t)
+		 (pl:disable-indentation 
+		  (match pl:disable-indentation 
+				 (:always :always)
+				 (:outer nil)
+				 (nil nil))))
 	(with-current-buffer output-buffer
 	  (when (not was-inside)
 		(delete-region (point-min)
@@ -479,7 +498,11 @@ regular, non-functional if statement."
 
 (defun-match pl:transcode ((list-rest 'script name body))
   "Encode a body into a script."
-  (let ((output-buffer (find-file-noselect (concat (pl:mangle (symbol-name name)) ".m"))))
+  (let ((output-buffer (find-file-noselect (concat (pl:mangle (symbol-name name)) ".m")))
+		(pl:disable-indentation (match pl:disable-indentation 
+									   (:always :always)
+									   (:outer nil)
+									   (nil nil))))
 	(with-current-buffer output-buffer
 	  (delete-region (point-min)
 					 (point-max))
@@ -548,7 +571,7 @@ regular, non-functional if statement."
 		  (pl:insertf ", ")
 		  )
 	(pl:insertf ")")
-	(indent-region start (point))))
+	(pl:indent-region start (point))))
 
 (defun pl:statement-formp (form)
   (match form 
@@ -633,6 +656,15 @@ with the transcoded code."
 
 (pl:def-pl-macro dont-do (&rest body)
 				 ())
+
+(pl:def-pl-macro let-while (symbol expression &body body)
+				 `(block 
+					  (setq ,symbol ,expression)
+					(while ,symbol ,@body 
+						   (setq ,symbol ,expression))))
+
+(pl:def-pl-macro flat-if (pred true &optional false)
+				 `(if ,pred (block ,@true) (block ,@false)))
 
 (defmacro* pl:pl (&body body)
   "Transcode BODY to matlab."

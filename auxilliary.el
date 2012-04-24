@@ -27,9 +27,10 @@
 	  ;; Note that the above code uses my personal matlab function
 	  ;; emessage which sends a message to emacs from matlab, it is
 	  ;; not included with this library.
-	  (comint-send-strings (get-buffer pla:matlab-buffer)
-						   (pl:replace-newlines-with-semicolons
-							(pl:transcode-to-string code))))))
+	  (let ((pl:disable-indentation :outer))
+		(comint-send-strings (get-buffer pla:matlab-buffer)
+							 (pl:replace-newlines-with-semicolons
+							  (pl:transcode-to-string code)))))))
 
 (defun parenlab-do-region (s e)
   (interactive "r")
