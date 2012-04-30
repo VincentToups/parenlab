@@ -174,7 +174,7 @@
   "Set is transcoded to assignment."
   (pl:transcode target)
   (pl:insertf " = ")
-  (pl:transcode value))
+  (pl:transcode value :as-expression))
 
 (defun pl:not-empty (l)
   "True when l is a non-empty list."
@@ -189,7 +189,7 @@
   (pl:transcode target)
   (pl:insertf " = ")
   (pl:transcode value :as-expression)
-  (pl:insertf "; ")
+  (pl:insertf ";\n")
   (recur `(setq ,@others)))
 
 (defun-match pl:transcode ((list 'progn form))
@@ -413,9 +413,10 @@ regular, non-functional if statement."
 									  (p #'symbolp v) 
 									  expr 
 									  body))
-  (pl:transcode `(for ,v ,expr
+  (pl:transcode `(for ,v (transpose (,expr :))
 					  (setq ,v ({} ,v 1))
-					  ,@body)))
+					  ,@body)
+				))
 
 (defun-match pl:transcode ((list-rest 'forcell 
 									  (list (p #'symbolp i)
@@ -487,7 +488,8 @@ regular, non-functional if statement."
 	  (pl:insertf ")\n")
 	  (when (stringp (car body))
 		(pl:insertf "%s\n" (pl:fix-comment-string (car body))))
-	  (pl:transcode-sequence body)
+	  (pl:transcode-sequence 
+	   (if (stringp (car body)) (cdr body) body))
 	  (pl:insertf "end\n")
 	  (basic-save-buffer))
 	(when (not was-inside)
@@ -498,11 +500,18 @@ regular, non-functional if statement."
 
 (defun-match pl:transcode ((list-rest 'script name body))
   "Encode a body into a script."
-  (let ((output-buffer (find-file-noselect (concat (pl:mangle (symbol-name name)) ".m")))
-		(pl:disable-indentation (match pl:disable-indentation 
-									   (:always :always)
-									   (:outer nil)
-									   (nil nil))))
+  (assert (or (symbolp name)
+			  (stringp name))
+		  ()
+		  "Name must be a string or a symbol.")
+  (let* ((outfile-name (if (symbolp name)
+						   (concat (pl:mangle (symbol-name name)) ".m")
+						 name))
+		 (output-buffer (find-file-noselect outfile-name))
+		 (pl:disable-indentation (match pl:disable-indentation 
+										(:always :always)
+										(:outer nil)
+										(nil nil))))
 	(with-current-buffer output-buffer
 	  (delete-region (point-min)
 					 (point-max))
@@ -579,6 +588,7 @@ regular, non-functional if statement."
 		 ((list-rest 'forcell _) t)
 		 ((list-rest 'flat-cond _) t)
 		 ((list-rest 'setq _) t)
+		 ((list-rest 'block _) t)
 		 ((list-rest := _) t)
 		 ((list 'if (list-rest 'block _)
 				(list-rest 'block _)) t)
@@ -654,6 +664,10 @@ with the transcoded code."
 (pl:defun (s) extend-struct (s f val)
 		  (setq (.. s f) val))
 
+(pl:defun (r) echo-return (q)
+		  (fprintf q)
+		  (setq r q))
+
 (pl:def-pl-macro dont-do (&rest body)
 				 ())
 
@@ -665,6 +679,11 @@ with the transcoded code."
 
 (pl:def-pl-macro flat-if (pred true &optional false)
 				 `(if ,pred (block ,@true) (block ,@false)))
+
+(pl:def-pl-macro empty-matrices (&rest names)
+				 `(:= ,@(loop 
+						 for name in names append 
+						 `(,name nil))))
 
 (defmacro* pl:pl (&body body)
   "Transcode BODY to matlab."
