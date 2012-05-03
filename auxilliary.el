@@ -35,8 +35,23 @@
 ;; 							 (pl:replace-newlines-with-semicolons
 ;; 							  (pl:transcode-to-string code)))))))
 
-(defun-match- pla:generate-last-sexp-code ((p #'pl:statement-formp code) filename)
-  `(script ,filename ,code))
+(pl:def-pl-macro with-error-to-emacs (&rest body)
+				 (let ((error-name (gensym "error-name-")))
+				   `(try ,body 
+						((:= ,error-name (lasterror))
+						 (emessage (.. ,error-name :message))
+						 (rethrow ,error-name)
+						 (clear ',error-name)))))
+
+(defun-match- pla:generate-last-sexp-code ((list-rest (or 'setq :=) pairs) filename)
+  "Print the value of the set variable."
+  (let ((variable (cadr (reverse pairs))))
+	`(script ,filename (setq ,@pairs)
+			 (emessage ,variable)
+			 )))
+
+(defun-match pla:generate-last-sexp-code ((p #'pl:statement-formp code) filename)
+  `(script ,filename ,code (emessage "Done!")))
 (defun-match pla:generate-last-sexp-code (code filename)
   (let ((val (gensym "val")))
 	`(script ,filename
@@ -47,7 +62,6 @@
 			 (emessage (evalc '(disp ,val)))
 			 (clear ',val))))
 
-
 (defun parenlab-do-last-sexp ()
   (interactive "")
   (save-excursion 
@@ -57,7 +71,9 @@
 			(concat pla:temp-script-dir 
 					file-name-only
 					".m"))
-		   (code (pla:generate-last-sexp-code code filename)))
+		   (code (pla:generate-last-sexp-code code filename))
+		   (run-code (pl:transcode-to-string 
+					  `(with-error-to-emacs ,(intern file-name-only)))))
 	  ;; Note that the above code uses my personal matlab function
 	  ;; emessage which sends a message to emacs from matlab, it is
 	  ;; not included with this library.
@@ -66,7 +82,7 @@
 	  (pl:transcode code)
 	  (let ((pl:disable-indentation :outer))
 		(comint-send-strings (get-buffer pla:matlab-buffer)
-							 file-name-only)))))
+							 run-code)))))
 
 
 (defun parenlab-do-region (s e)

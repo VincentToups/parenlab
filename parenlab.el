@@ -48,7 +48,7 @@
 			   s1)))
 	(replace-regexp-in-string 
 	 (rx 
-	  (| "+" "-" "*" "%" "$" "&" "^" "!" ":" "/" "\\" "#" "@" "?" "="
+	  (| "~" "+" "-" "*" "%" "$" "&" "^" "!" ":" "/" "\\" "#" "@" "?" "="
 		 "<" ">"))
 	 (match-lambda 
 	  ("+" "plus")
@@ -67,6 +67,7 @@
 	  ("/" "divide")
 	  ("\\" "mdivide")
 	  ("#" "hash")
+	  ("~" "tilda")
 	  ("@" "at"))
 	 s1)))
 
@@ -404,16 +405,17 @@ regular, non-functional if statement."
 	(pl:transcode `(: 1 (length ,expr-value)))
 	(pl:insertf "\n")
 	(pl:transcode `(setq ,value (,expr-value ,index)))
-	(pl:insertf "\n")
+	(pl:insertf ";\n")
 	(pl:transcode-sequence body)
 	(pl:insertf "end\n")
+	(pl:insertf "clear %s;\n" expr-value)
 	(pl:indent-region start (point))))
 
 (defun-match pl:transcode ((list-rest 'forcell 
 									  (p #'symbolp v) 
 									  expr 
 									  body))
-  (pl:transcode `(for ,v (transpose (,expr :))
+  (pl:transcode `(for ,v (flat-across ,expr)
 					  (setq ,v ({} ,v 1))
 					  ,@body)
 				))
@@ -589,10 +591,13 @@ regular, non-functional if statement."
 		 ((list-rest 'flat-cond _) t)
 		 ((list-rest 'setq _) t)
 		 ((list-rest 'block _) t)
+		 ((list-rest 'try _) t)
 		 ((list-rest := _) t)
 		 ((list 'if (list-rest 'block _)
 				(list-rest 'block _)) t)
 		 ((list 'if (list-rest 'block _)) t)
+		 ((and (list-rest (p #'pl:pl-macrop head) _))
+		  (recur (apply (pl:pl-macrop head) _)))
 		 (_ nil)))
 
 (defun pl:replace-newlines-with-semicolons (s)
@@ -684,6 +689,15 @@ with the transcoded code."
 				 `(:= ,@(loop 
 						 for name in names append 
 						 `(,name nil))))
+
+(pl:defun (r) flat-across (a)
+		  "Return a flat version of a, extending column-ward."
+		  (setq r (transpose (a :))))
+
+(pl:defun (r) flat-down (a)
+		  "Return a flat version of a, extending row-ward."
+		  (setq r (a :)))
+
 
 (defmacro* pl:pl (&body body)
   "Transcode BODY to matlab."
