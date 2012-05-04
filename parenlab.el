@@ -9,7 +9,9 @@
 
 (defun pl:indent-region (s e)
   (unless pl:disable-indentation 
-	(indent-region s e)))
+	(condition-case info 
+		(indent-region s e)
+	  (error nil))))
 
 (defun pl:symbol-with-indexing-syntax (x)
   "Return T when x is a non-keyword symbol with indexing syntax."
@@ -157,7 +159,8 @@
 (defun-match pl:transcode ((list 'quote form))
   "Quotations are evaluated to strings whose value under eval is
   the value of the forms."
-  (pl:transcode (pl:transcode-to-string form)))
+  (pl:transcode (let ((pl:disable-indentation t))
+				  (pl:transcode-to-string form))))
 
 (defun-match pl:transcode ((list-rest 'elisp forms))
   "Escape and execute lisp FORMS."
@@ -222,9 +225,13 @@ regular, non-functional if statement."
 	(pl:insertf "if ")
 	(pl:transcode condition)
 	(pl:insertf "\n")
-	(pl:transcode-sequence true-body)
+	(if (null true-body)
+		(pl:transcode-sequence (list nil))
+	  (pl:transcode-sequence true-body))
 	(pl:insertf "else\n")
-	(pl:transcode-sequence false-body)
+	(if (null false-body)
+		(pl:transcode-sequence (list nil))
+	  (pl:transcode-sequence false-body))
 	(pl:insertf "end\n")
 	(pl:indent-region start (point))))
 
@@ -408,7 +415,7 @@ regular, non-functional if statement."
 	(pl:insertf ";\n")
 	(pl:transcode-sequence body)
 	(pl:insertf "end\n")
-	(pl:insertf "clear %s;\n" expr-value)
+	(pl:insertf "clear '%s';\n" (pl:mangle expr-value))
 	(pl:indent-region start (point))))
 
 (defun-match pl:transcode ((list-rest 'forcell 
@@ -593,11 +600,15 @@ regular, non-functional if statement."
 		 ((list-rest 'block _) t)
 		 ((list-rest 'try _) t)
 		 ((list-rest := _) t)
-		 ((list 'if (list-rest 'block _)
+		 ((list-rest 'flat-cond _) t)
+		 ((list 'if condition 
+				(list-rest 'block _)
 				(list-rest 'block _)) t)
-		 ((list 'if (list-rest 'block _)) t)
+		 ((list 'if 
+				condition
+				(list-rest 'block _)) t)
 		 ((and (list-rest (p #'pl:pl-macrop head) _))
-		  (recur (apply (pl:pl-macrop head) _)))
+		  (pl:statement-formp (apply (pl:pl-macrop head) _)))
 		 (_ nil)))
 
 (defun pl:replace-newlines-with-semicolons (s)
@@ -702,6 +713,37 @@ with the transcoded code."
 (defmacro* pl:pl (&body body)
   "Transcode BODY to matlab."
   `(pl:transcode '(block ,@body)))
+
+(pl:def-pl-macro 
+ holding (&rest body)
+ `(block 
+	  (hold :on) ,@body
+	  (hold :off)))
+
+(pl:def-pl-macro 
+ capture (&rest args)
+ (let ((names (gensym "names"))
+	   (name (gensym "name"))
+	   (struct-name (gensym "struct-name-")))
+   (match args
+		  ((list :all)
+		   `(progn 
+			  (setq ,struct-name (struct))
+			  (forcell ,name (who)
+					   (setq (.. ,struct-name ,name)
+							 (eval [ ,name ";"])))
+			  ,struct-name))
+		  ((list-rest elements)
+		   `(progn 
+			  (setq ,struct-name (struct))
+			  (forcell ,name (cell-array ,@elements)
+					   (setq (.. ,struct-name ,name)
+							 (eval [ ,name ";"])))
+			  ,struct-name)))))
+
+(pl:def-pl-macro flat-when (condition &rest body)
+				 `(flat-if ,condition (,@body)))
+
 
 (provide 'parenlab)
 
