@@ -3,5 +3,5 @@ function r=pipepipe(o,varargin)
 r = o;
 for vi=1:length(varargin)
   item=varargin{vi};
-  r = r | o;
+  r = r | item;
 end

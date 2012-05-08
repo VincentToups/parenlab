@@ -1,5 +1,6 @@
 (require 'parenlab)
 (require 'shadchen)
+(provide 'parenlab-aux)
 
 (defvar pla:matlab-buffer "*evalshell*")
 (defvar pla:temp-script-dir "/tmp/parenlab-temp/")
@@ -101,3 +102,6 @@
 									  (local-set-key (kbd "C-c C-c") #'parenlab-do)
 									  (local-set-key (kbd "C-x C-e") #'parenlab-do-last-sexp))))
 
+(defun pval (sexpr)
+  (interactive "x")
+  (mval (pl:transcode-to-string sexpr)))

@@ -47,6 +47,9 @@
 									   s1))
 		 (s1 (if (string= "." (substring s1 0 1))
 				 (concat "dot" (substring s1 1))
+			   s1))
+		 (s1 (if (string= "." (substring s1 (- (length s1) 1) (length s1)))
+				 (concat (substring s1 0 (- (length s1) 1)) "dot")
 			   s1)))
 	(replace-regexp-in-string 
 	 (rx 
@@ -124,7 +127,8 @@
   (let ((start (point)))
 	(pl:insertf "[ ")
 	(loop for item across v do
-		  (if (eq '| item) 
+		  (if (or (eq '| item)
+				  (eq : item)) 
 			  (pl:insertf ";\n")
 			(progn (pl:transcode item)
 				   (pl:insertf " "))))
@@ -541,6 +545,32 @@ regular, non-functional if statement."
 	`(setf (gethash ',name *pl-macros*)
 		   (lambda (&rest ,args)
 			 (destructuring-bind ,lamlist ,args ,@body)))))
+
+(defun-match pl:transcode ((list-rest 'matrix v))
+  "Handle vector."
+  (let ((start (point)))
+	(pl:insertf "[ ")
+	(loop for item in v do
+		  (if (or (eq '| item)
+				  (eq : item))
+			  (pl:insertf ";\n")
+			(progn (pl:transcode item)
+				   (pl:insertf " "))))
+	(pl:insertf "]")
+	(pl:indent-region start (point))))
+
+(defun-match pl:transcode ((list-rest 'matrix{} v))
+  "Handle vector."
+  (let ((start (point)))
+	(pl:insertf "{ ")
+	(loop for item in v do
+		  (if (or (eq '| item)
+				  (eq : item)) 
+			  (pl:insertf ";\n")
+			(progn (pl:transcode item)
+				   (pl:insertf " "))))
+	(pl:insertf "}")
+	(pl:indent-region start (point))))
 
 (defun-match pl:transcode ((list-rest (p #'pl:pl-macrop dispatch) arguments))
   "Handle the expansion of pl-macros."
