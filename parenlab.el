@@ -858,6 +858,68 @@ is by default always true."
 									 (funcall post-filter name))
 								(:= ({} files (+ end 1)) name))))
 
+(pl:defun (r) cell-equal (c1 c2)
+		  (flat-when (not (all (== (size c2) (size c1))))
+					 (:= r 0)
+					 return)
+		  (:= c1 (flat-across c1)
+			  c2 (flat-across c2))
+		  (forcell (i c1-el) c1
+				   (:= c2-el ({} c2 i))
+				   (flat-when (not (equal c1-el c2-el))
+							  (:= r 0)
+							  return))
+		  (:= r 1))
+
+(pl:defun (r) count-of (o)
+		  (setq r (length (flat-across o))))
+
+(pl:defun (r) struct-equal (s1 s2)
+		  (setq fields1 (sort (fieldnames s1))
+				fields2 (sort (fieldnames s2)))
+		  (flat-cond 
+		   ((and (all (== (size s1) (size s2)))
+				 (== (length (fieldnames s1))
+					 (length (fieldnames s2)))
+				 (all (strcmp fields1 fields2)))
+			(flat-cond 
+			 ((== (count-of s1) 1)
+			  (forcell (i f) fields1
+					   (flat-when (not (equal (.. s1 f)
+											  (.. s2 f)))
+								  (:= r 0)
+								  return))
+			  (:= r 1))
+			 (:otherwise 
+			  (for (i ss1) s1
+				   (:= ss2 (s2 i))
+				   (flat-when (not (equal ss1 ss2))
+							  (:= r 0)
+							  return))
+			  (:= r 1))))
+		   (:otherwise (:= r 0))))
+
+(pl:defun (r) isclass (class-name object)
+		  (:= r (strcmp (class object) class-name)))
+
+(pl:defun (r) equal (a b)
+		  "Generalized, structural equality."
+		  (flat-cond 
+		   ((strcmp (class a) (class b))
+			(flat-cond 
+			 ((isclass "cell" a)
+			  (setq r (cell-equal a b)))
+			 ((isclass "struct" a)
+			  (setq r (struct-equal a b)))
+			 ((and (isnumeric a)
+				   (isnumeric b))
+			  (setq r (all (== a b))))))
+		   ((and (isnumeric a)
+				 (isnumeric b))
+			(setq r (all (== a b))))
+		   (:otherwise 
+			(setq r 0))))
+
 
 (provide 'parenlab)
 
