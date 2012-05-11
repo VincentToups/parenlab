@@ -6,6 +6,7 @@
 (defvar pl:transplant-scripts-and-functions t)
 
 (defvar pl:disable-indentation nil)
+(defvar pl:transcoding-in-elisp nil)
 
 (defun pl:indent-region (s e)
   (unless pl:disable-indentation 
@@ -22,7 +23,7 @@
 		 (or (= n 2)
 			 (= n 3)))))
 
-(defvar pl:kill-opened-transcode-buffers nil)
+(defvar pl:kill-opened-transcode-buffers t)
 (defun* pl:maybe-kill-buffer (&optional (buffer (current-buffer)))
   (if pl:kill-opened-transcode-buffers 
 	  (kill-buffer buffer)
@@ -205,14 +206,31 @@
   "Progn with a single form is the form itself."
   (pl:transcode form))
 
+(defun pl:make-sequence-set-last-to (name sequence)
+  (let* ((re (reverse (copy-list sequence)))
+		 (last (car re))
+		 (new-last `(setq ,name ,last)))
+	(reverse (cons new-last (cdr re)))))
+
 (defun-match pl:transcode ((list-rest 'progn forms))
   "Progn is transcoded to a hack function call."
-  (pl:insertf "progn(")
-  (loop for form in forms do
-		(pl:transcode form :as-expression) 
-		(pl:insertf ", "))
-  (delete-region (point) (- (point) 2))
-  (pl:insertf ")"))
+  (cond (pl:inside-previous-defun
+		 (let ((ref (gensym "progn-name-"))
+			   (retval (gensym "progn-retval-")))
+		   (pl:insertf "(")
+		   (pl:transcode ref)
+		   (pl:insertf ")")
+		   (push 
+			(list (list retval) ref (list) 
+				  (pl:make-sequence-set-last-to retval forms))
+			pl:deferred-functions)))
+		((not pl:inside-previous-defun)
+		 (pl:insertf "progn(")
+		 (loop for form in forms do
+			   (pl:transcode form :as-expression) 
+			   (pl:insertf ", "))
+		 (delete-region (point) (- (point) 2))
+		 (pl:insertf ")"))))
 
 (defun-match pl:transcode ((list-rest 'block body))
   "A block is inserted directly into the code as a sequence of
@@ -374,14 +392,23 @@ regular, non-functional if statement."
 
 (defun-match pl:transcode ((list 'lambda (p #'listp args) form))
   "Lambda is transcoded to a regular @ lambda."
-  (pl:insertf "@(")
-  (loop for arg in args 
-		and i from 0 do
-		(pl:transcode arg)
-		when (< i (- (length args) 1))
-		do (pl:insertf ", "))
-  (pl:insertf ")")
-  (pl:transcode form))
+  (cond 
+   ((not pl:inside-previous-defun)
+	(pl:insertf "@(")
+	(loop for arg in args 
+		  and i from 0 do
+		  (pl:transcode arg)
+		  when (< i (- (length args) 1))
+		  do (pl:insertf ", "))
+	(pl:insertf ")")
+	(pl:transcode form))
+   (pl:inside-previous-defun 
+	(let ((name (gensym "lambda-"))
+		  (retval (gensym "retval-")))
+	  (pl:transcode `(function ,name))
+	  (push (list (list retval) name args 
+				  (pl:make-sequence-set-last-to retval (list form)))
+			pl:deferred-functions)))))
 
 (defun-match pl:transcode ((list-rest 'for (p #'symbolp v) expr body))
   "Expand a for loop."
@@ -427,6 +454,7 @@ regular, non-functional if statement."
 									  (p #'symbolp v) 
 									  expr 
 									  body))
+  "A  for loop over a cell array, without index."
   (pl:transcode `(for ,v (flat-across ,expr)
 					  (setq ,v ({} ,v 1))
 					  ,@body)
@@ -437,9 +465,28 @@ regular, non-functional if statement."
 											(p #'symbolp v)) 
 									  expr 
 									  body))
-  (pl:transcode `(for (,i ,v) ,expr
+  "A  for loop over a cell array, with an index.."
+  (pl:transcode `(for (,i ,v) (flat-across ,expr)
 					  (setq ,v ({} ,v 1))
 					  ,@body)))
+
+(defun-match pl:transcode ((list-rest 'forstruct 
+									  (p #'symbolp v)
+									  expr
+									  body))
+  "A for loop over struct elements without an index."
+  (pl:transcode `(for ,v (flat-across ,expr)
+					  ,@body)))
+
+(defun-match pl:transcode ((list-rest 'forstruct 
+									  (list (p #'symbolp i)
+											(p #'symbolp v))
+									  expr
+									  body))
+  "A for loop over struct elements without an index."
+  (pl:transcode `(for (,i ,v) (flat-across ,expr)
+					  ,@body)))
+
 
 (defun-match pl:transcode ((list 'literally string))
   "Allows you to insert code directly into the output stream."
@@ -461,53 +508,60 @@ regular, non-functional if statement."
   (pl:transcode s))
 
 (defvar pl:inside-previous-defun nil)
-(defun-match pl:transcode ((list-rest 'defun
-									  (pl:arglist outargs)
-									  (p #'symbolp name) 
-									  (pl:arglist inargs) 
-									  body))
-  "Transcode a function into an m-file."
-  
-  (let* ((start (point))
-		 (output-buffer 
-		  (if pl:inside-previous-defun (current-buffer)
-			(find-file-noselect (concat (pl:mangle (symbol-name name)) ".m"))))
-		 (was-inside pl:inside-previous-defun)
-		 (pl:inside-previous-defun t)
-		 (pl:disable-indentation 
-		  (match pl:disable-indentation 
-				 (:always :always)
-				 (:outer nil)
-				 (nil nil))))
-	(with-current-buffer output-buffer
-	  (when (not was-inside)
-		(delete-region (point-min)
-					   (point-max))) 
-	  (pl:insertf "function [")
-	  (loop for o in outargs 
-			and i from 1
-			do 
-			(pl:transcode o)
-			when (< i (length outargs))
-			do (pl:insertf ", "))
-	  (pl:insertf "] = ")
-	  (pl:transcode name)
-	  (pl:insertf "(")
-	  (loop for a in inargs
-			and i from 1 do
-			(pl:transcode a)
-			when (< i (length inargs))
-			do
-			(pl:insertf ", "))
-	  (pl:insertf ")\n")
-	  (when (stringp (car body))
-		(pl:insertf "%s\n" (pl:fix-comment-string (car body))))
-	  (pl:transcode-sequence 
-	   (if (stringp (car body)) (cdr body) body))
-	  (pl:insertf "end\n")
-	  (basic-save-buffer))
-	(when (not was-inside)
-	  (pl:maybe-kill-buffer output-buffer))))
+
+(defun pl:transcode-comma-seperated-list (expressions)
+  (let ((n-expressions (length expressions)))
+	(loop for e in expressions 
+		  and i from 1 do
+		  (pl:transcode e)
+		  when (not (= i n-expressions)) do
+		  (pl:insertf ", "))))
+(defvar pl:deferred-functions nil)
+(defun pl:transcode-defun-raw (outargs name inargs body)
+  (pl:insertf "function [")
+  (pl:transcode-comma-seperated-list outargs)
+  (pl:insertf "] = ")
+  (pl:transcode name)
+  (pl:insertf "(")
+  (pl:transcode-comma-seperated-list inargs)
+  (pl:insertf ")\n")
+  (let ((pl:deferred-functions nil)
+		(doc-string (if (stringp (car body)) (car body) ""))
+		(actual-body (if (stringp (car body)) (cdr body) body)))
+	(pl:insertf "%s\n" (pl:fix-comment-string doc-string))
+	(pl:transcode-sequence actual-body)
+	(loop for d in pl:deferred-functions do
+		  (apply #'pl:transcode-defun-raw d)
+		  (pl:insertf "\n")))
+  (pl:insertf "\nend"))
+
+(defun-match pl:transcode 
+  ((list-rest 'defun (pl:arglist outargs)
+			  (p #'symbolp name)
+			  (pl:arglist inargs)
+			  body))
+  (unless pl:transcoding-in-elisp 
+	(pl:transcode `(function ,name)))
+  (cond 
+   (pl:inside-previous-defun 
+	(push (list outargs name inargs body) pl:deferred-functions))
+   ((not pl:inside-previous-defun)
+	(let ((output-buffer 
+		   (find-file-noselect (concat (pl:mangle (symbol-name name)) ".m")))
+		  (pl:inside-previous-defun t))
+	  (with-current-buffer output-buffer
+		(delete-region (point-min) (point-max))
+		(pl:transcode-defun-raw outargs name inargs body)
+		(basic-save-buffer)
+		)
+	  (pl:maybe-kill-buffer output-buffer)))))
+
+(defun-match pl:transcode 
+  ((list-rest 'defun (p #'symbolp name) (pl:arglist inargs) body))
+  "Transcode a simple function."
+  (let ((o (gensym "o")))
+	(pl:transcode 
+	 `(defun (,o) ,name ,inargs ,@(pl:make-sequence-set-last-to o body)))))
 
 (defun-match pl:transcode ((list-rest 'defmacro name (p #'listp args) body))
   (eval `(pl:def-pl-macro ,name ,args ,@body)))
@@ -631,6 +685,7 @@ regular, non-functional if statement."
 		 ((list-rest 'block _) t)
 		 ((list-rest 'try _) t)
 		 ((list-rest := _) t)
+										;((list-rest 'defun) t)
 		 ((list-rest 'flat-cond _) t)
 		 ((list 'if condition 
 				(list-rest 'block _)
@@ -665,6 +720,7 @@ forms transcode identically so this is a drop in replacement."
   (if (symbolp item)
 	  (recur rest)
 	nil))
+(defun-match pl:maybe-empty-list-of-symbols (_) nil)
 
 (defpattern pl:arglist (&optional pattern)
   (if (not pattern) `(p #'pl:maybe-empty-list-of-symbols)
@@ -687,8 +743,8 @@ forms transcode identically so this is a drop in replacement."
 (defmacro* pl:defun (oargs name iargs &body body)
   "Define a matlab function by creating a file and filling it in
 with the transcoded code."
-  `(pl:transcode '(defun ,oargs ,name ,iargs ,@body)))
-
+  `(let ((pl:transcoding-in-elisp t))
+	 (pl:transcode '(defun ,oargs ,name ,iargs ,@body))))
 
 (pl:defun (r) ++ (varargin)
 		  "Add as many numbers as you'd like."
@@ -775,7 +831,32 @@ with the transcoded code."
 (pl:def-pl-macro flat-when (condition &rest body)
 				 `(flat-if ,condition (,@body)))
 
+(pl:defun (g) /and (varargin)
+		  "Return a function G which is the logical and of the results of passing args to all of the functions in varargin."
+		  (:= functions varargin)
+		  (defun (b) /and-inner (varargin)
+			(:= b (funcall (first functions varargin)))
+			(forcell fun ({} functions (: 2 end)) 
+					 (:= b (and b (funcall fun varargin)))
+					 (flat-when (not b)
+								return))
+			))
 
+(pl:defun (files) directory-files (the-dir post-filter)
+		  "Return FILES in THE-DIR, as strings, excluding
+directories and anything which fails post-filter, which
+is by default always true."
+		  (flat-when (not (strcmp (the-dir end) "/"))
+					 (:= the-dir [the-dir "/"]))
+		  (flat-when (not (exist 'post-filter))
+					 (:= post-filter (lambda (x) 1)))
+		  (:= initial-files (dir the-dir))
+		  (:= files (cell-array))
+		  (forstruct s initial-files
+					 (:= name [the-dir s.name])
+					 (flat-when (and (not s.isdir)
+									 (funcall post-filter name))
+								(:= ({} files (+ end 1)) name))))
 
 
 (provide 'parenlab)

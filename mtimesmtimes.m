@@ -5,4 +5,5 @@ for x = varargin
   r = mtimes(r, x{1});
 end
 ;
+
 end

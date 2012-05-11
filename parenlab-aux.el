@@ -11,7 +11,7 @@
 
 (defun parenlab-do (p)
   (interactive "P")
-  
+  (pla:do-macros)
   (let* ((code-string 
 		  (if p
 			  (read-from-minibuffer "pl: ")
@@ -39,10 +39,10 @@
 (pl:def-pl-macro with-error-to-emacs (&rest body)
 				 (let ((error-name (gensym "error-name-")))
 				   `(try ,body 
-						((:= ,error-name (lasterror))
-						 (emessage (.. ,error-name :message))
-						 (rethrow ,error-name)
-						 (clear ',error-name)))))
+						 ((:= ,error-name (lasterror))
+						  (emessage (.. ,error-name :message))
+						  (rethrow ,error-name)
+						  (clear ',error-name)))))
 
 (defun-match- pla:generate-last-sexp-code ((list-rest (or 'setq :=) pairs) filename)
   "Print the value of the set variable."
@@ -65,6 +65,7 @@
 
 (defun parenlab-do-last-sexp ()
   (interactive "")
+  (pla:do-macros)
   (save-excursion 
 	(let* ((code (get-last-sexp))
 		   (file-name-only (concat (symbol-name (gensym "parenlab"))))
@@ -88,6 +89,7 @@
 
 (defun parenlab-do-region (s e)
   (interactive "r")
+  (pla:do-macros)
   (let ((string (concat "(block "
 						(buffer-substring s e)
 						")")))
@@ -105,3 +107,11 @@
 (defun pval (sexpr)
   (interactive "x")
   (mval (pl:transcode-to-string sexpr)))
+
+(defvar pla:already-doing-macros nil)
+(defun pla:do-macros ()
+  (when (and (file-exists-p "macros.parenlab") (not pla:already-doing-macros))
+	(with-current-buffer (find-file-noselect "macros.parenlab")
+	  (let ((pla:already-doing-macros t))
+		(parenlab-do-region (point-min) (point-max))))))
+
