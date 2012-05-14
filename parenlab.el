@@ -643,7 +643,7 @@ regular, non-functional if statement."
  cond (&rest legs)
  (let* ((branch-bodies 
 		 (mapcar (lambda (body)
-				   `(lambda () (progn ,@body))) legs))
+				   `(lambda () (progn ,@(cdr body)))) legs))
 		(conditions (mapcar (lambda (leg)
 							  `(lambda () ,(car leg))) legs))
 		(body-formatted 
@@ -911,6 +911,8 @@ is by default always true."
 			  (setq r (cell-equal a b)))
 			 ((isclass "struct" a)
 			  (setq r (struct-equal a b)))
+			 ((isclass "char" a)
+			  (setq r (strcmp a b)))
 			 ((and (isnumeric a)
 				   (isnumeric b))
 			  (setq r (all (== a b))))))
@@ -920,6 +922,44 @@ is by default always true."
 		   (:otherwise 
 			(setq r 0))))
 
+(pl:def-pl-macro 
+ flat-case 
+ (expression &rest legs)
+ (let ((value (gensym "case-value-")))
+   `(block 
+ 	   (:= ,value ,expression)
+	  (flat-cond 
+	   ,@(loop 
+		  for leg in legs collect
+		  `((equal ,value ,(car leg))
+			,@(cdr leg)))))))
+
+(pl:defun (b) equal-one-of (value values)
+		  (:= b 0)
+		  (forcell (i value*) values
+				   (flat-when (equal value value*)
+							  (:= b 1)
+							  return)))
+
+(pl:def-pl-macro 
+ case 
+ (expression &rest legs)
+ (let ((value (gensym "case-value-")))
+   `(with  
+	 ,value ,expression
+	 (cond 
+	  ,@(loop 
+		 for leg in legs collect
+		 (match leg 
+				((list-rest (or :otherwise 'otherwise 'else :else) body)
+				 `(1 ,@body))
+				((list-rest (list-rest values) body)
+				 `((equal-one-of ,value (cell-array ,@values)) ,@body))
+				((list-rest (p #'symbolp value) body)
+				 `((equal ,value ,expression) ,@body))))))))
+
 
 (provide 'parenlab)
 
+(match (list 1 2 3 4)
+	   ((list-rest head tail) tail))

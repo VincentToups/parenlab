@@ -5,6 +5,8 @@ if strcmp(class(a), class(b))
     r = cellEqual(a, b);
   elseif isclass('struct', a)
     r = structEqual(a, b);
+  elseif isclass('char', a)
+    r = strcmp(a, b);
   elseif andFunction(@()isnumeric(a), @()isnumeric(b))
     r = all(equalequal(a, b));
   end
