@@ -502,10 +502,15 @@ regular, non-functional if statement."
 	(pl:insertf "end\n")
 	(pl:indent-region start (point))))
 
-(defun-match pl:transcode ((list 'function (p #'symbolp s)))
+(defun-match pl:transcode ((list 'function (p #'pl:non-keyword-symbolp s)))
   "Encode a function namespace query."
   (pl:insertf "@")
   (pl:transcode s))
+
+(defun-match pl:transcode ((list 'function (p #'keywordp s)))
+  "Encode a curried struct field access."
+  (pl:transcode `(struct-access/c ,s)))
+
 
 (defvar pl:inside-previous-defun nil)
 
@@ -661,7 +666,7 @@ regular, non-functional if statement."
 						 `(funcall (lambda ,(mapcar #'car bindings) (progn ,@real-body)) ,@(mapcar #'cadr bindings)))))
 
 (defun-match pl:transcode ((list-rest (p #'pl:non-keyword-symbolp the-function) arguments))
-  "Handle the-function calls."
+  "Handle the function calls."
   (let ((start (point)))
 	(pl:transcode the-function)
 	(pl:insertf "(")
@@ -675,6 +680,22 @@ regular, non-functional if statement."
 		  )
 	(pl:insertf ")")
 	(pl:indent-region start (point))))
+
+(defun-match pl:transcode ((list-rest (p #'keywordp the-keyword) (list argument)))
+  "Handle the keyword function calls.  These calls assume their
+  argument is a struct and return the corresponding field."
+  (let ((struct-name (gensym "struct-name-")))
+	(pl:transcode `(let ((,struct-name ,argument))
+					 (.. ,struct-name ,the-keyword)))))
+
+(defun-match pl:transcode ((list-rest (p #'keywordp the-keyword) (list (list-rest indexes) argument)))
+  "Handle the keyword function calls.  These calls assume their
+  argument is a struct and return the corresponding field.  This
+  version indexes the struct before getting the field."
+  (let ((struct-name (gensym "struct-name-")))
+	(pl:transcode `(let ((,struct-name ,argument))
+					 (.. ,struct-name ,indexes ,the-keyword)))))
+
 
 (defun pl:statement-formp (form)
   (match form 
@@ -858,6 +879,65 @@ is by default always true."
 									 (funcall post-filter name))
 								(:= ({} files (+ end 1)) name))))
 
+(pl:defun (files) directory-directories (the-dir post-filter)
+		  "Return FILES in THE-DIR, as strings, excluding
+directories and anything which fails post-filter, which
+is by default always true."
+		  (flat-when (not (strcmp (the-dir end) "/"))
+					 (:= the-dir [the-dir "/"]))
+		  (flat-when (not (exist 'post-filter))
+					 (:= post-filter (lambda (x) 1)))
+		  (:= initial-files (dir the-dir))
+		  (:= files (cell-array))
+		  (forstruct s initial-files
+					 (:= name [the-dir s.name])
+					 (flat-when (and s.isdir
+									 (funcall post-filter name)
+									 (not (strcmp ".." s.name))
+									 (not (strcmp "." s.name)))
+								(:= ({} files (+ end 1)) name))))
+
+(pl:defun (files) directory-contents (the-dir post-filter)
+		  "Return DIRECTORIES in THE-DIR, as strings, excluding
+directories and anything which fails post-filter, which is by
+default always true."
+		  (flat-when (not (strcmp (the-dir end) "/"))
+					 (:= the-dir [the-dir "/"]))
+		  (flat-when (not (exist 'post-filter))
+					 (:= post-filter (lambda (x) 1)))
+		  (:= initial-files (dir the-dir))
+		  (:= files (cell-array))
+		  (forstruct s initial-files
+					 (:= name [the-dir s.name])
+					 (:= ({} files (+ end 1)) name)))
+
+(pl:defun (files) tree-files (root post-filter)
+		  "Return the file-contents of the directory 
+ROOT. subject to the filter POST-FILTER."
+		  (flat-when (not (strcmp (root end) "/"))
+					 (:= the-dir [root "/"]))
+		  (flat-when (not (exist 'post-filter))
+					 (:= post-filter (lambda (x) 1)))
+		  (:= files (directory-files root post-filter))
+		  (:= sub-directories (directory-directories root post-filter))
+		  (forcell (i sub-root) sub-directories
+				   (:= files 
+					   [files (tree-files sub-root post-filter)])))
+
+(pl:defun (name) file-name (whole-file)
+		  "Return the name part of a file."
+		  (setq ii (find (== whole-file "/")))
+		  (flat-if (isempty ii)
+				   ((setq name whole-file))
+				   ((setq name (whole-file (: (+ 1 (ii end)) end))))))
+
+(pl:defun (the-dir) file-directory (whole-file)
+		  "Return the directory part of a file."
+		  (setq ii (find (== whole-file "/")))
+		  (flat-if (isempty ii)
+				   ((setq name whole-file))
+				   ((setq name (whole-file (: 1 (- (ii end) 1)))))))
+
 (pl:defun (r) cell-equal (c1 c2)
 		  (flat-when (not (all (== (size c2) (size c1))))
 					 (:= r 0)
@@ -927,7 +1007,7 @@ is by default always true."
  (expression &rest legs)
  (let ((value (gensym "case-value-")))
    `(block 
- 	   (:= ,value ,expression)
+		(:= ,value ,expression)
 	  (flat-cond 
 	   ,@(loop 
 		  for leg in legs collect
@@ -958,8 +1038,12 @@ is by default always true."
 				((list-rest (p #'symbolp value) body)
 				 `((equal ,value ,expression) ,@body))))))))
 
+(pl:defun (b) struct-access/c (field)
+		  "Return a function which returns the FIELD of the struct."
+		  (setq b 
+				(lambda (the-struct)
+				  [(.. the-struct field)])))
+
 
 (provide 'parenlab)
 
-(match (list 1 2 3 4)
-	   ((list-rest head tail) tail))
