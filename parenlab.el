@@ -696,6 +696,16 @@ regular, non-functional if statement."
 	(pl:transcode `(let ((,struct-name ,argument))
 					 (.. ,struct-name ,indexes ,the-keyword)))))
 
+(defun-match pl:transcode ((list-rest (p #'stringp s) arguments))
+  "Raise an error if one attempts to apply a string."
+  (error "Can't apply a string to arguments."))
+
+(defun-match pl:transcode ((list-rest function-expression args))
+  "If the function is an arbitrary expression, find its value and
+funcall that."
+  (let ((the-function (gensym "the-function-")))
+	(pl:transcode `(let ((,the-function ,function-expression))
+					 (funcall ,the-function ,@args)))))
 
 (defun pl:statement-formp (form)
   (match form 

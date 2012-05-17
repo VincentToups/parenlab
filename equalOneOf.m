@@ -1,9 +1,9 @@
 function [b] = equalOneOf(value, values)
 %
 b = 0;
-forLoopValueminus170746 = flatAcross(values);
-for i = ((1):(length(forLoopValueminus170746)))
-  valuemtimes = forLoopValueminus170746(i);
+forLoopValueminus34215 = flatAcross(values);
+for i = ((1):(length(forLoopValueminus34215)))
+  valuemtimes = forLoopValueminus34215(i);
   valuemtimes = valuemtimes{1};
   if equal(value, valuemtimes)
     b = 1;
@@ -13,7 +13,7 @@ for i = ((1):(length(forLoopValueminus170746)))
   end
   ;
 end
-clear 'forLoopValueminus170746';
+clear 'forLoopValueminus34215';
 ;
 
 end

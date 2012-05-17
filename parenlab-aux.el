@@ -4,10 +4,31 @@
 
 (defvar pla:matlab-buffer "*evalshell*")
 (defvar pla:temp-script-dir "/tmp/parenlab-temp/")
+
 (when (not (directoryp pla:temp-script-dir))
   (make-directory pla:temp-script-dir))
 
 (defun setup-result-catcher ())
+
+(defun pla:join-strings (strings delim)
+  (reduce 
+   (lambda (ac it)
+	 (concat ac delim it ))
+   (cdr strings)
+   :initial-value (car strings)))
+
+(defun pla:length=1 (o)
+  (and (listp o)
+	   (= 1 (length o))))
+
+(defun pla:no-dots (o)
+  (and (stringp o)
+	   (pla:length=1 (split-string o (regexp-quote ".")))))
+
+(defun pla:remove-file-extension (file)
+  (let ((parts (split-string file (regexp-quote "."))))
+	(if (pla:length=1 parts) (car parts)
+	  (pla:join-strings (reverse (cdr (reverse parts))) "."))))
 
 (defun parenlab-do (p)
   (interactive "P")
@@ -17,7 +38,7 @@
 			  (read-from-minibuffer "pl: ")
 			(concat "(" (buffer-substring (point-min) (point-max)) 
 					")")))
-		 (code (append (list 'script (intern (replace-string-in-string ".parenlab" "" (buffer-name)))) (car (read-from-string code-string)))))
+		 (code (append (list 'script (intern (pla:remove-file-extension (buffer-name)))) (car (read-from-string code-string)))))
 	
 	(pl:transcode code)
 	(comint-send-strings (get-buffer pla:matlab-buffer)

@@ -1,0 +1,316 @@
+(addpath "~/elisp/utils/parenlab/")
+
+(defmacro parser (bindings &rest body)
+  "A parser monad macro.  Each BINDING expression is a symbol/parser
+expression pair.  The symbol is bound to the proper return value of
+the parser at parse time."
+  (cond ((not bindings) `(progn ,@body))
+		(:otherwise 
+		 `(pbind ,(cadr (car bindings))
+				 (lambda (,(car (car bindings)))
+				   (parser ,(cdr bindings) ,@body))))))
+
+(defun (oparser) pbind (monadic-value monadic-function)
+  "Bind operation for deterministic string oparser."
+  (if (ischar monadic-value)
+	  (block 
+		  (setq monadic-value (=>string monadic-value))))
+  (if (isnumeric monadic-value)
+	  (block
+		  (setq monadic-value (=>number monadic-value))))
+  (defun (pstate) inner-parser (input)
+	(setq result (funcall monadic-value input))
+										;(fprintf "Input: %s\\n" input)
+	(if (not (iscell result))
+		(block (error (sprintf "Parsers must return a cell array. Input is: %s" input))))
+	(if (not (isempty result))
+		(block 
+			(setq value (first result))
+		  (setq rest (second result))
+		  (setq new-parser (funcall monadic-function value))
+		  (setq pstate (funcall new-parser rest)))
+	  (block 
+		  (setq pstate (cell-array)))))
+  (setq oparser #'inner-parser))
+
+(defun (oparser) preturn (value)
+  "Return a parser function which returns value."
+  (setq oparser 
+		(lambda (input) (cell-array value input))))
+
+(defun (result) =item (input)
+  "A parser which takes the first value off the input and returns it.
+If the input is empty, this fails."
+  (if (not (isempty input))
+	  (block (setq result (cell-array (input 1) (input 2:end))))
+	(block (setq result (cell-array)))))
+
+(defun (oparser) =>items (n)
+  "Return a parser which returns N items from the input."
+  (setq oparser
+		(lambda (input)
+		  (if (<= n (length input))
+			  (cell-array (input 1:n) (input (: (+ n 1) end)))
+			(cell-array)))))
+
+(defun (oparser) =>string (s)
+  "Return a parser which matches the string S only."
+  (setq oparser
+		(parser ((sub-string (=>items (length s))))
+				(if (strcmp sub-string s)
+					(preturn s)
+				  #'=nil))))
+
+(defun (result) =nil (input)
+  "The saddest parser - it always fails!"
+  (setq result (cell-array)))
+
+(defun (result) =digit (input)
+  "Parser one character from the set 0-9."
+  (setq result
+		(funcall (parser ((i #'=item))
+						 (if (not (isempty (strfind "0123456789" i)))
+							 (preturn i)
+						   #'=nil))
+				 input)))
+
+(defun (result) =number (input)
+  "Parse a single number from the input stream."
+  (setq [s e]
+		(regexp input "^[+-]{0,1}[0-9]*[.]{0,1}[0-9]*"))
+  (if (not (isempty s))
+	  (block 
+		  (setq result (cell-array (str2double (input (: s e))) 
+								   (input (: (+ 1 e) end)))))
+	(block 
+		(setq result (cell-array)))))
+
+(defun (=p) =>number (n)
+  "Return a parser which succeeds only when it can parse a number from
+the input and that number is N, numerically."
+  (setq =p 
+		(parser ((m #'=number))
+				(if (== n m)
+					(preturn n)
+				  #'=nil))))
+
+(defun (result) =number-ph-style (input)
+  "Parse a number with - in the place of ."
+  (setq [s e]
+		(regexp input "^[+-]{0,1}[0-9]*[-]{0,1}[0-9]*"))
+  (if (not (isempty s))
+	  (block 
+		  (setq result (cell-array (str2double 
+									(strrep (input (: s e)) "-" "."))
+								   (input (: (+ 1 e) end)))))
+	(block 
+		(setq (result (cell-array))))))
+
+
+(defun (r) =space (input)
+  "Parse a single space."
+  (setq f (first input))
+  (if (any (strcmp f (cell-array " " (sprintf "\\t") (sprintf "\\n"))))
+	  (block (setq r (cell-array f (input (: 2 end)))))
+	(block (setq r (cell-array)))))
+
+(defun (r) =spaces (input)
+  (setq [s e] (regexp input "^\s+"))
+  (flat-if (not (isempty s))
+		   ((setq r (cell-array (input (: s e))
+								(input (: (+ e 1) end)))))
+		   ((setq r (cell-array)))))
+
+  (defun (r) =>maybe (=p)
+	"Return a parser that parses =p, and if that fails succeeds anyway,
+returning an empty value."
+	(setq r 
+		  (lambda (input)
+			(let ((r1 (funcall =p input)))
+			  (if (not (isempty r1)) r1
+				(cell-array nil input))))))
+
+  (defun (=p) =>or (varargin)
+	"Return a parser which tries each of the parser arguments in turn
+until one succeeds.  If none succeed, then this parser also fails."
+	(defun (pval) =>or-inner (input)
+	  (forcell item varargin
+			   (if (not (strcmp "function_handle" (class item)))
+				   (block (error "Really expected all parsers to be functions.")))
+			   (setq result 
+					 (funcall item input))
+			   (if (not (isempty result))
+				   (block 
+					   (setq pval result)
+					 return)))
+	  (setq pval (cell-array)))
+	(setq =p #'=>or-inner))
+
+  (defun (=p) =>zero-or-more (=ip)
+	"Return a parser which parses zero or more =ips.  A list of the
+successfully parsed results is returned."
+	(defun (pval) =>zero-or-more-inner (input)
+	  (setq result (cell-array))
+	  (setq done 0)
+	  (while (not done)
+		(setq one-result (funcall =ip input))
+		(flat-if (not (isempty one-result))
+				 ((setq input (second one-result))
+				  (setq ({} result (+ end 1)) (first one-result)))
+				 ((setq pval 
+						(cell-array result input))
+				  (setq done 1)))))
+	(setq =p #'=>zero-or-more-inner))
+
+
+  (defun (r) =_ (input) 
+	"Parse an underscore."
+	(setq r 
+		  (if (strcmp "_" (first input))
+			  (cell-array "_" (input 2:end))
+			(cell-array))))
+
+  (defun (r) =symbol (input)
+	"Parse one lisp-style symbol."
+	(setq [s e] (regexp input "^[-+:<>?.{}|*/!@$%^&*_a-zA-Z][-+:<>?.{}|*/!@$%^&*_a-zA-Z0-9]+"))
+
+	(flat-if (not (isempty s))
+			 (
+			  (setq the-symbol.type "symbol")
+			  (setq the-symbol.name (input (: s e)))
+			  (setq rest (input (: (+ e 1) end)))
+			  (setq r (cell-array the-symbol rest)))
+			 (
+			  (setq r (cell-array)))))
+
+(defun (r) =keyword (input)
+  "Parse one lisp-style keyword."
+  (setq [s e] (regexp input "^:[-+:<>?.{}|*/!@$%^&*_a-zA-Z0-9]+"))
+  (flat-if (not (isempty s))
+		   (
+			(setq the-keyword.type "keyword")
+			(setq the-keyword.name (input (: s e)))
+			(setq rest (input (: (+ e 1) end)))
+			(setq r (cell-array the-keyword rest)))
+		   (
+			(setq r (cell-array)))))
+
+(defun (r) =sexpression (input)
+  "Parse an s-expression."
+  (setq compound
+		(=>or #'=quoted-sexpression
+			  #'=sharp-quoted-sexpression
+			  #'=symbol #'=keyword #'=number #'=list-of-sexpressions
+			  #'=vector-of-sexpressions #'=lisp-string))
+  (setq r (compound input)))
+
+(defun (r) =quoted-sexpression (input)
+  (setq p (parser 
+		   ((ignore (=>string "'"))
+			(the-sexpression #'=sexpression))
+		   (preturn 
+			(cell-array (make-symbol "quote") the-sexpression))))
+  (setq r (funcall p input)))
+
+(defun (r) =sharp-quoted-sexpression (input)
+  (setq p (parser 
+		   ((ignore (=>string "#'"))
+			(the-sexpression #'=sexpression))
+		   (preturn 
+			(cell-array (make-symbol "function") the-sexpression))))
+  (setq r (funcall p input)))
+
+
+(defun (r) =sexpression+spaces (input)
+  "Parse an s-expression with spaces around it."
+  (setq p 
+		(parser ((ignore (=>maybe #'=spaces))
+				 (e #'=sexpression)
+				 (ignore (=>maybe #'=spaces)))
+				(preturn e)))
+  (setq r (p input)))
+
+(defun (r) =open-paren (input)
+  (flat-if (strcmp (input 1) "(")
+		   ((setq r (cell-array "(" (input (: 2 end)))))
+		   ((setq r (cell-array)))))
+
+(defun (r) =close-paren (input)
+  (flat-if (strcmp (input 1) ")")
+		   ((setq r (cell-array ")" (input (: 2 end)))))
+		   ((setq r (cell-array)))))
+
+(defun (r) =open-square (input)
+  (flat-if (strcmp (input 1) "[")
+		   ((setq r (cell-array "[" (input (: 2 end)))))
+		   ((setq r (cell-array)))))
+
+(defun (r) =close-square (input)
+  (flat-if (strcmp (input 1) "]")
+		   ((setq r (cell-array "]" (input (: 2 end)))))
+		   ((setq r (cell-array)))))
+
+(defun (s) make-symbol (name)
+  (setq s.type "symbol")
+  (setq s.name name))
+
+(defun (s) make-keyword (name)
+  (setq s.type "keyword")
+  (setq s.name [ ":" name ]))
+
+(defun (b) symbolp (o)
+  (and (isstruct o)
+	   (hasfield o "type")
+	   (strcmp o.type "symbol")))
+
+(defun (b) keywordp (o)
+  (and (isstruct o)
+	   (hasfield o "type")
+	   (strcmp o.type "keyword")))
+
+(defun (r) =list-of-sexpressions (input)
+  (setq p (parser 
+		   ((ignore #'=open-paren)
+			(contents (=>zero-or-more #'=sexpression+spaces))
+			(ignore #'=close-paren))
+		   (preturn contents)))
+  (setq r (p input)))
+
+(defun (r) =vector-of-sexpressions (input)
+  "Parse a vector of s-expressions."
+  (setq p (parser 
+		   ((ignore #'=open-square)
+			(contents (=>zero-or-more #'=sexpression+spaces))
+			(ignore #'=close-sqare))
+		   (preturn [ (cell-array (make-symbol "vector")) contents ])))
+  (setq r (p input)))
+
+(defun (r) =lisp-string (input)
+  (flat-cond 
+   ((isempty input) (setq r (cell-array)))
+   ((strcmp "\"" (input 1))
+	(setq input (input (: 2 end)))
+	(setq q-indexes (== [ input " " ] "\""))
+	(setq e-indexes (== [ " " input ] "\\"))
+	(setq term-cands (find (& (not e-indexes) q-indexes)))
+	(flat-cond 
+	 ((isempty term-cands)
+	  (setq r (cell-array)))
+	 (:otherwise
+	  (setq term (term-cands 1))
+	  (setq string-contents 
+			(input (: 1 (- term 1))))
+	  (setq r (cell-array string-contents (input (: (+ 1 term) end)))))))
+   (:otherwise 
+	(setq r (cell-array)))))
+
+(dont-do
+(first (=lisp-string "\"te\\\"st\""))
+(first (=symbol "3some-symbol dogs"))
+(=keyword ":some-keyword")
+(=sexpression ":some-keyword")
+
+(=sexpression+spaces "  some-keyword ")
+(setq parsed (first (=list-of-sexpressions "(:a-keword a-symbol #'(another-symbol :a-third-keyword) 10 \"and a string, dogs!\")")))
+)
+
