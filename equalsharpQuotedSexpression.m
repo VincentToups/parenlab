@@ -1,13 +1,13 @@
 function [r] = equalsharpQuotedSexpression(input)
 %
-p = pbind(equalgreaterThanstring('#'''), @lambdaminus82875);
+p = pbind(equalgreaterThanstring('#'''), @lambdaminus77736);
 r = funcall(p, input);
-function [retvalminus82876] = lambdaminus82875(ignore)
+function [retvalminus77737] = lambdaminus77736(ignore)
 %
-retvalminus82876 = pbind(@equalsexpression, @lambdaminus82877);
-function [retvalminus82878] = lambdaminus82877(theSexpression)
+retvalminus77737 = pbind(@equalsexpression, @lambdaminus77738);
+function [retvalminus77739] = lambdaminus77738(theSexpression)
 %
-retvalminus82878 = preturn(cellArray(makeSymbol('function'), theSexpression));
+retvalminus77739 = preturn(cellArray(makeSymbol('function'), theSexpression));
 
 end
 

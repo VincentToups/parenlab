@@ -8,24 +8,24 @@ else
 end
 ;
 if ~(exist('postFilter'))
-  postFilter = @lambdaminus34209;
+  postFilter = @lambdaminus77708;
 else
   [];
 end
 ;
 files = directoryFiles(root, postFilter);
 subDirectories = directoryDirectories(root, postFilter);
-forLoopValueminus34211 = flatAcross(subDirectories);
-for i = ((1):(length(forLoopValueminus34211)))
-  subRoot = forLoopValueminus34211(i);
+forLoopValueminus77710 = flatAcross(subDirectories);
+for i = ((1):(length(forLoopValueminus77710)))
+  subRoot = forLoopValueminus77710(i);
   subRoot = subRoot{1};
   files = [ files treeFiles(subRoot, postFilter) ];
 end
-clear 'forLoopValueminus34211';
+clear 'forLoopValueminus77710';
 ;
-function [retvalminus34210] = lambdaminus34209(x)
+function [retvalminus77709] = lambdaminus77708(x)
 %
-retvalminus34210 = 1;
+retvalminus77709 = 1;
 
 end
 

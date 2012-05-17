@@ -1,16 +1,16 @@
 function [r] = equalvectorOfSexpressions(input)
 %Parse a vector of s-expressions.
-p = pbind(@equalopenSquare, @lambdaminus82891);
+p = pbind(@equalopenSquare, @lambdaminus77752);
 r = p(input);
-function [retvalminus82892] = lambdaminus82891(ignore)
+function [retvalminus77753] = lambdaminus77752(ignore)
 %
-retvalminus82892 = pbind(equalgreaterThanzeroOrMore(@equalsexpressionplusspaces), @lambdaminus82893);
-function [retvalminus82894] = lambdaminus82893(contents)
+retvalminus77753 = pbind(equalgreaterThanzeroOrMore(@equalsexpressionplusspaces), @lambdaminus77754);
+function [retvalminus77755] = lambdaminus77754(contents)
 %
-retvalminus82894 = pbind(@equalcloseSqare, @lambdaminus82895);
-function [retvalminus82896] = lambdaminus82895(ignore)
+retvalminus77755 = pbind(@equalcloseSqare, @lambdaminus77756);
+function [retvalminus77757] = lambdaminus77756(ignore)
 %
-retvalminus82896 = preturn([ cellArray(makeSymbol('vector')) contents ]);
+retvalminus77757 = preturn([ cellArray(makeSymbol('vector')) contents ]);
 
 end
 

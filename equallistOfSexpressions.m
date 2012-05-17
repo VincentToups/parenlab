@@ -1,16 +1,16 @@
 function [r] = equallistOfSexpressions(input)
 %
-p = pbind(@equalopenParen, @lambdaminus82885);
+p = pbind(@equalopenParen, @lambdaminus77746);
 r = p(input);
-function [retvalminus82886] = lambdaminus82885(ignore)
+function [retvalminus77747] = lambdaminus77746(ignore)
 %
-retvalminus82886 = pbind(equalgreaterThanzeroOrMore(@equalsexpressionplusspaces), @lambdaminus82887);
-function [retvalminus82888] = lambdaminus82887(contents)
+retvalminus77747 = pbind(equalgreaterThanzeroOrMore(@equalsexpressionplusspaces), @lambdaminus77748);
+function [retvalminus77749] = lambdaminus77748(contents)
 %
-retvalminus82888 = pbind(@equalcloseParen, @lambdaminus82889);
-function [retvalminus82890] = lambdaminus82889(ignore)
+retvalminus77749 = pbind(@equalcloseParen, @lambdaminus77750);
+function [retvalminus77751] = lambdaminus77750(ignore)
 %
-retvalminus82890 = preturn(contents);
+retvalminus77751 = preturn(contents);
 
 end
 

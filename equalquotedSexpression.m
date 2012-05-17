@@ -1,13 +1,13 @@
 function [r] = equalquotedSexpression(input)
 %
-p = pbind(equalgreaterThanstring(''''), @lambdaminus82871);
+p = pbind(equalgreaterThanstring(''''), @lambdaminus77732);
 r = funcall(p, input);
-function [retvalminus82872] = lambdaminus82871(ignore)
+function [retvalminus77733] = lambdaminus77732(ignore)
 %
-retvalminus82872 = pbind(@equalsexpression, @lambdaminus82873);
-function [retvalminus82874] = lambdaminus82873(theSexpression)
+retvalminus77733 = pbind(@equalsexpression, @lambdaminus77734);
+function [retvalminus77735] = lambdaminus77734(theSexpression)
 %
-retvalminus82874 = preturn(cellArray(makeSymbol('quote'), theSexpression));
+retvalminus77735 = preturn(cellArray(makeSymbol('quote'), theSexpression));
 
 end
 

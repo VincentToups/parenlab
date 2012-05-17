@@ -172,6 +172,34 @@
   "Escape and execute lisp FORMS."
   (eval `(progn ,@forms)))
 
+(defun pl:join (strings delim)
+  "Join the list of strings with DELIM."
+  (reduce (lambda (ac it)
+			(concat ac delim it))
+		  (cdr strings)
+		  :initial-value (car strings)))
+
+(defun pl:remove-extension (file)
+  (let* ((r (reverse (split-string file (regexp-quote ".")))))
+	(if (= 1 (length r)) (car r)
+	  (let ((r (cdr r))
+			(r (reverse r)))
+		(pl:join r ".")))))
+
+(defun pl:transcode-file (file)
+  (let* ((buffer (find-file-noselect file))
+		 (string-of (with-current-buffer buffer
+					  (buffer-substring (point-min) (point-max))))
+		 (code (read-from-string (concat (format "(script %s " (pl:remove-extension file)) string-of ")"))))
+	(with-current-buffer buffer
+	  (pl:transcode code))))
+
+(defun-match pl:transcode ((list-rest 'require files))
+  "Files should be a list of parenlab files which are transcoded
+  when the require line is encountered."
+  (loop for f in files do
+		(pl:transcode-file f)))
+
 (defun-match pl:transcode ((list 'not form))
   "Translate the not operator."
   (pl:insertf "~(")
