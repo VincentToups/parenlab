@@ -1,9 +1,9 @@
 function [b] = structAccessdividec(field)
 %Return a function which returns the FIELD of the struct.
-b = @lambdaminus77715;
-function [retvalminus77716] = lambdaminus77715(theStruct)
+b = @lambdaminus111168;
+function [retvalminus111169] = lambdaminus111168(theStruct)
 %
-retvalminus77716 = [ theStruct.(field) ];
+retvalminus111169 = [ theStruct.(field) ];
 
 end
 

@@ -1,6 +1,4 @@
-(addpath "~/elisp/utils/parenlab/")
-
-(defmacro parser (bindings &rest body)
+% transcoded script : ~/elisp/utils/parenlab/monadic-parser-combinators.parenlab% transcoded script : ~/elisp/utils/parenlab/monadic-parser-combinators.parenlab(defmacro parser (bindings &rest body)
   "A parser monad macro.  Each BINDING expression is a symbol/parser
 expression pair.  The symbol is bound to the proper return value of
 the parser at parse time."
@@ -303,6 +301,7 @@ successfully parsed results is returned."
 	  (setq r (cell-array string-contents (input (: (+ 1 term) end)))))))
    (:otherwise 
 	(setq r (cell-array)))))
+
 
 (dont-do
 (first (=lisp-string "\"te\\\"st\""))

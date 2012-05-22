@@ -1,16 +1,16 @@
 function [r] = equalsexpressionplusspaces(input)
 %Parse an s-expression with spaces around it.
-p = pbind(equalgreaterThanmaybe(@equalspaces), @lambdaminus77740);
+p = pbind(equalgreaterThanmaybe(@equalspaces), @lambdaminus108396);
 r = p(input);
-function [retvalminus77741] = lambdaminus77740(ignore)
+function [retvalminus108397] = lambdaminus108396(ignore)
 %
-retvalminus77741 = pbind(@equalsexpression, @lambdaminus77742);
-function [retvalminus77743] = lambdaminus77742(e)
+retvalminus108397 = pbind(@equalsexpression, @lambdaminus108398);
+function [retvalminus108399] = lambdaminus108398(e)
 %
-retvalminus77743 = pbind(equalgreaterThanmaybe(@equalspaces), @lambdaminus77744);
-function [retvalminus77745] = lambdaminus77744(ignore)
+retvalminus108399 = pbind(equalgreaterThanmaybe(@equalspaces), @lambdaminus108400);
+function [retvalminus108401] = lambdaminus108400(ignore)
 %
-retvalminus77745 = preturn(e);
+retvalminus108401 = preturn(e);
 
 end
 

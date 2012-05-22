@@ -190,15 +190,47 @@
   (let* ((buffer (find-file-noselect file))
 		 (string-of (with-current-buffer buffer
 					  (buffer-substring (point-min) (point-max))))
-		 (code (read-from-string (concat (format "(script %s " (pl:remove-extension file)) string-of ")"))))
+		 (code (car (read-from-string (concat (format "(script \"%s\" " file) string-of ")")))))
+	(message "%S" code)
 	(with-current-buffer buffer
 	  (pl:transcode code))))
+
+(defvar pl:require-cache (make-hash-table :test 'equal))
+
+(defun pl:find-buffer-by-file-visited (file)
+  "Return the buffer visiting FILE, NIL if no such buffer exists."
+  (let ((truename (file-truename file)))
+	(match-let (((cons hd buffers) (buffer-list)))
+			   (cond ((null hd) nil)
+					 ((string= truename (buffer-file-name hd)) hd)
+					 (:otherwise (recur buffers))))))
+
+(defun pl:file-already-openp (file)
+  (pl:find-buffer-by-file-visited file))
+
+(defun pl:md5-file (file)
+  "Return the md5 of the file FILE."
+  (let ((already-open (pl:file-already-openp file)))
+	(prog1 
+		(md5 (find-file-noselect file))
+	  (if (not already-open)
+		  (kill-buffer already-open)))))
+
+(defun pl:file-needs-re-require (file)
+  (let ((hash (pl:md5-file file)))
+	(not (equal hash (gethash file pl:require-cache)))))
+
+(defun pl:update-require-cache (file)
+  (setf (gethash file pl:require-cache) (pl:md5-file file)))
 
 (defun-match pl:transcode ((list-rest 'require files))
   "Files should be a list of parenlab files which are transcoded
   when the require line is encountered."
   (loop for f in files do
-		(pl:transcode-file f)))
+		(when (pl:file-needs-re-require f)
+		  (pl:transcode `(block (addpath (file-directory ,f))))
+		  (pl:transcode-file f)
+		  (pl:update-require-cache f))))
 
 (defun-match pl:transcode ((list 'not form))
   "Translate the not operator."
@@ -599,6 +631,15 @@ regular, non-functional if statement."
 (defun-match pl:transcode ((list-rest 'defmacro name (p #'listp args) body))
   (eval `(pl:def-pl-macro ,name ,args ,@body)))
 
+(defun pl:ends-with-dotmp (s)
+  (and (> (length s) 1)
+	   (string= (substring s -2) ".m")))
+
+
+(defun pl:maybe-add-dotm (s)
+  (if (pl:ends-with-dotmp s) (format "%s" s)
+	(concat (pl:remove-extension (format "%s" s)) ".m")))
+
 (defun-match pl:transcode ((list-rest 'script name body))
   "Encode a body into a script."
   (assert (or (symbolp name)
@@ -607,12 +648,14 @@ regular, non-functional if statement."
 		  "Name must be a string or a symbol.")
   (let* ((outfile-name (if (symbolp name)
 						   (concat (pl:mangle (symbol-name name)) ".m")
-						 name))
+						 (pl:maybe-add-dotm name)))
 		 (output-buffer (find-file-noselect outfile-name))
 		 (pl:disable-indentation (match pl:disable-indentation 
 										(:always :always)
 										(:outer nil)
 										(nil nil))))
+	;; (unless pl:transcoding-in-elisp 
+	;;   (pl:insertf "%% transcoded script : %s" name))
 	(with-current-buffer output-buffer
 	  (delete-region (point-min)
 					 (point-max))
@@ -973,8 +1016,8 @@ ROOT. subject to the filter POST-FILTER."
 		  "Return the directory part of a file."
 		  (setq ii (find (== whole-file "/")))
 		  (flat-if (isempty ii)
-				   ((setq name whole-file))
-				   ((setq name (whole-file (: 1 (- (ii end) 1)))))))
+				   ((setq the-dir whole-file))
+				   ((setq the-dir (whole-file (: 1 (- (ii end) 1)))))))
 
 (pl:defun (r) cell-equal (c1 c2)
 		  (flat-when (not (all (== (size c2) (size c1))))
@@ -1081,6 +1124,13 @@ ROOT. subject to the filter POST-FILTER."
 		  (setq b 
 				(lambda (the-struct)
 				  [(.. the-struct field)])))
+
+(pl:defun (ignore) delete* (file varargin)
+		  "Just like DELETE* except deletes multiple files and returns a value."
+		  (setq ignore 0)
+		  (delete file)
+		  (forcell (i v) varargin
+				   (delete v)))
 
 
 (provide 'parenlab)
