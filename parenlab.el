@@ -37,7 +37,31 @@
 (defun pl:insertf (fs &rest args)
   (insert (apply #'format fs args)))
 
+(defvar pl:mangle-cache (make-hash-table :test 'equal))
+(defvar pl:unmangle-cache (make-hash-table :test 'equal))
+(setq pl:unmangle-cache (make-hash-table :test 'equal))
+(setq pl:mangle-cache (make-hash-table :test 'equal))
+
 (defun pl:mangle (s)
+  (let* ((s (if (symbolp s) (symbol-name s) s))
+		 (m (gethash
+			 s pl:mangle-cache)))
+	(if m m
+	  (progn 
+		(let ((m (pl:mangle-raw s)))
+		  (setf (gethash s pl:mangle-cache) m)
+		  (setf (gethash m pl:unmangle-cache) s)
+		  m)))))
+
+(defun pl:attempt-unmangle (input-s)
+  (let* ((output-as-symbol (symbolp input-s))
+		 (s (if (symbolp input-s) (symbol-name input-s) input-s))
+		 (u (gethash s pl:unmangle-cache s)))
+	(if output-as-symbol 
+		(intern u)
+	  u)))
+
+(defun pl:mangle-raw (s)
   (let* ((s (if (symbolp s) (symbol-name s) s))
 		 (s1 (replace-regexp-in-string "-\\([a-z]\\)" 
 									   (lambda (x)
@@ -82,7 +106,7 @@
   (with-temp-buffer 
 	(matlab-mode)
 	(pl:transcode form)
- 	(buffer-substring (point-min)
+	(buffer-substring (point-min)
 					  (point-max))))
 
 (defun pl:=/c (a)
@@ -470,6 +494,11 @@ regular, non-functional if statement."
 				  (pl:make-sequence-set-last-to retval (list form)))
 			pl:deferred-functions)))))
 
+(defun-match pl:transcode ((list-rest (and (or 'for 'forcell) head) 
+									  :initialize name/values rest))
+  (pl:transcode `(block (:= ,@name/values)
+				   (,head ,@rest))))
+
 (defun-match pl:transcode ((list-rest 'for (p #'symbolp v) expr body))
   "Expand a for loop."
   (let ((start (point)))
@@ -509,6 +538,7 @@ regular, non-functional if statement."
 	(pl:insertf "end\n")
 	(pl:insertf "clear '%s';\n" (pl:mangle expr-value))
 	(pl:indent-region start (point))))
+
 
 (defun-match pl:transcode ((list-rest 'forcell 
 									  (p #'symbolp v) 
@@ -1131,6 +1161,54 @@ ROOT. subject to the filter POST-FILTER."
 		  (delete file)
 		  (forcell (i v) varargin
 				   (delete v)))
+
+(pl:defun (s) numeric->rstring (o)
+  (flat-cond 
+   ((== 1 (length o))
+	(setq s (sprintf "%d" o)))
+   ((== 2 (length (size o)))
+	(for :initialize (s "(matrix")
+		 i (: 1 (size o 1))
+		 (for j (: 1 (size o 2))
+	 		  (setq s [ s " " (numeric->rstring (o i j))]))
+		 (flat-when (not (== i (size o 1)))
+					(setq s [ s " :"])))
+	(setq s [ s ")"]))
+   (:otherwise 
+	(setq s ["(reshape " (numeric->rstring (flat-down o)) " " (numeric->rstring (size o)) ")"]))))
+
+(pl:defun (s) string->rstring (ms)
+		  (for :initialize (s "\"") 
+			   c ms
+			   (flat-if (strcmp c "\"")
+						((setq s [ s "\\\""]))
+						((setq s [ s c]))))
+		  (setq s [s "\""]))
+
+(pl:defun (s) cell->rstring (c)
+		  (flat-cond 
+		   ((== 1 (length c))
+			(setq s (sprintf "(cell-array %s)" (object->pl-string (first c)))))
+		   ((== 2 (length (size c)))
+			(for :initialize (s "(matrix{}")
+				 i (: 1 (size c 1))
+				 (for j (: 1 (size c 2))
+					  (setq s [ s " " (object->pl-string ({} c i j))]))
+				 (flat-when (not (== i (size c 1)))
+							(setq s [ s " :"])))
+			(setq s [ s ")"]))
+		   (:otherwise 
+			(setq s ["(reshape " (cell->rstring (flat-down c)) " " (numeric->rstring (size c)) ")"]))))
+
+
+(pl:defun (s) object->pl-string (o)
+		  (setq s 
+				(case (class o)
+				  ((:double :logical :integer)
+				   (numeric->rstring o))
+				  ((:char)
+				   (string->rstring o)))))
+
 
 
 (provide 'parenlab)

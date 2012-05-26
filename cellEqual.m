@@ -9,9 +9,9 @@ end
 ;
 c1 = flatAcross(c1);
 c2 = flatAcross(c2);
-forLoopValueminus111164 = flatAcross(c1);
-for i = ((1):(length(forLoopValueminus111164)))
-  c1El = forLoopValueminus111164(i);
+forLoopValueminus60150 = flatAcross(c1);
+for i = ((1):(length(forLoopValueminus60150)))
+  c1El = forLoopValueminus60150(i);
   c1El = c1El{1};
   c2El = c2{i};
   if ~(equal(c1El, c2El))
@@ -22,7 +22,7 @@ for i = ((1):(length(forLoopValueminus111164)))
   end
   ;
 end
-clear 'forLoopValueminus111164';
+clear 'forLoopValueminus60150';
 ;
 r = 1;
 
